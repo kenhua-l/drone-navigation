@@ -127,6 +127,7 @@ class TrajectoryPlanner
 
     float estimateDistance(float x1, float y1, float x2, float y2)
     {
+			std::cout << sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) ) << std::endl;
       return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
     }
     // As mentioned in the demo, our algorithm definitely has some room for improvement.
@@ -163,8 +164,8 @@ class TrajectoryPlanner
 
             if(validGridXy(temp_x, temp_y))
             {
-							float new_path_dist = distances[current.x][current.y] + 1;
-              float new_distance = distances[current.x][current.y] + 1 + estimateDistance(temp_x, temp_y, start_x, start_y);
+							float new_path_dist = distances[current.x][current.y] + estimateDistance(0,0,i,j);
+              float new_distance = new_path_dist + estimateDistance(temp_x, temp_y, start_x, start_y);
               // Relax neighbour
               if(isWall(temp_x, temp_y))
               {
@@ -176,7 +177,7 @@ class TrajectoryPlanner
                 {
                   // If new_distance is shorter, replace it in the queue
                   pq.erase(MapCell(temp_x, temp_y, distances[temp_x][temp_y]));
-                  distances[temp_x][temp_y] = distances[current.x][current.y] + 1;
+                  distances[temp_x][temp_y] = new_path_dist;
                   parents[temp_x][temp_y] = std::make_pair(current.x, current.y);
 
                   MapCell temp = MapCell(temp_x, temp_y, new_distance);
