@@ -70,10 +70,12 @@ class TrajectoryPlanner
 			// Some setup
 			putRectOnGrid(10, 50, 60, 60);
 			putRectOnGrid(50, 10, 60, 60);
+			putRectOnGrid(20, 70, 30, 100);
 			putRectOnGrid(40, 60, 50, 90);
 			a_star_path = a_star_search(1,1,100,100);
 		}
 
+		// Just continously publish data for display in rviz
 		void loopActivity()
 		{
 			static int seq = 1;
@@ -125,12 +127,7 @@ class TrajectoryPlanner
 			// The next step would be to generate a *smooth* path for multiple goals
 		}
 
-    float estimateDistance(float x1, float y1, float x2, float y2)
-    {
-			std::cout << sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) ) << std::endl;
-      return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
-    }
-    // As mentioned in the demo, our algorithm definitely has some room for improvement.
+    // Probably should clean this up. It's annoyingly long.
     nav_msgs::Path a_star_search(int start_x, int start_y, int end_x, int end_y)
     {
       // Path object setup
@@ -164,6 +161,8 @@ class TrajectoryPlanner
 
             if(validGridXy(temp_x, temp_y))
             {
+							// Using estimateDistance gives realistic path cost,
+							// penalizing diagonal moves.
 							float new_path_dist = distances[current.x][current.y] + estimateDistance(0,0,i,j);
               float new_distance = new_path_dist + estimateDistance(temp_x, temp_y, start_x, start_y);
               // Relax neighbour
@@ -227,6 +226,18 @@ class TrajectoryPlanner
 		{
 			return y*GRID_LENGTH + x;
 		}
+		void gridIToGridXy(int &grid_x, int &grid_y, int i)
+    {
+      // occupancy_grid.data uses a row-major order, so we need to convert
+      grid_x = (int) (i % occupancy_grid.info.width);
+      grid_y = (int) (i / occupancy_grid.info.width);
+    }
+
+		void mapXyToGridXy(int &grid_x, int &grid_y, float map_x, float map_y)
+    {
+      grid_x = (int)((map_x - occupancy_grid.info.origin.position.x)/GRID_RESOLUTION);
+      grid_y = (int)((map_y - occupancy_grid.info.origin.position.y)/GRID_RESOLUTION);
+    }
     void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y)
     {
       map_x = occupancy_grid.info.origin.position.x + (grid_x + 0.5) * GRID_RESOLUTION;
@@ -241,6 +252,10 @@ class TrajectoryPlanner
 		bool validGridXy(int x, int y)
     {
       return (x >= 0 && y >= 0 && x < GRID_LENGTH && y < GRID_LENGTH);
+    }
+    float estimateDistance(float x1, float y1, float x2, float y2)
+    {
+      return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
     }
 
 
