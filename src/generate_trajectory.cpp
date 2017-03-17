@@ -85,6 +85,8 @@ class TrajectoryPlanner
 			occupancy_grid.header.frame_id = "base_footprint";
 			grid_pub.publish(occupancy_grid);
 			path_pub.publish(a_star_path);
+
+			seq++;
 		}
 
 		void putObstaclesOnGrid()
