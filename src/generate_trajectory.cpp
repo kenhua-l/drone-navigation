@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include "ros/ros.h"
 #include <math.h>
+#include <tuple>
 
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Path.h>
 
 // Map definitions
-#define MAP_SIZE        10
+#define MAP_SIZE        5
+#define MAP_START_X			-2.5
+#define MAP_START_Y			-2.5
 #define GRID_STEPS      10
 #define GRID_RESOLUTION (1.0/GRID_STEPS)
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
@@ -36,18 +39,25 @@ class TrajectoryPlanner
         int x;
         int y;
 				float distance;
+				int heading;
 
-        MapCell(int x, int y, float distance)
+        MapCell(int x, int y, float distance, int heading)
         {
           this->x = x;
           this->y = y;
           this->distance = distance;
+					this->heading = heading;
         }
 
         bool operator<(MapCell other) const
         {
           return distance < other.distance;
         }
+
+				void setHeading(int heading)
+				{
+					this->heading = heading;
+				}
   	};
 
 	public:
@@ -63,16 +73,13 @@ class TrajectoryPlanner
 			occupancy_grid.info.resolution = GRID_RESOLUTION;
 			occupancy_grid.info.width = GRID_LENGTH;
 			occupancy_grid.info.height = GRID_LENGTH;
-			occupancy_grid.info.origin.position.x = - (GRID_RESOLUTION / 2.0);
-			occupancy_grid.info.origin.position.y = - (GRID_RESOLUTION / 2.0);
+			occupancy_grid.info.origin.position.x = MAP_START_X;
+			occupancy_grid.info.origin.position.y = MAP_START_Y;
 			occupancy_grid.data = grid_data;
 
 			// Some setup
-			putRectOnGrid(10, 50, 60, 60);
-			putRectOnGrid(50, 10, 60, 60);
-			putRectOnGrid(20, 70, 30, 100);
-			putRectOnGrid(40, 60, 50, 90);
-			a_star_path = a_star_search(1,1,100,100);
+			putObstaclesOnGrid();
+			a_star_path = a_star_search(START_X,START_Y,CHECKPT_X,CHECKPT_Y);
 		}
 
 		// Just continously publish data for display in rviz
@@ -91,8 +98,12 @@ class TrajectoryPlanner
 
 		void putObstaclesOnGrid()
 		{
-			// Read obstacles from file
+			// TODO: Read obstacles from file
+			int[][] obs = {{1,1}, {1,-1}, {-0.5,0.5}};
 			// Create 60cm buffer around obstacles
+			for (int i=0; i<3; i++) {
+				putCircleOnGrid(obs[i][0], obs[i][1], OBS_RADIUS);
+			}
 		}
 
 		void putCircleOnGrid(int x, int y, float radius)
@@ -129,9 +140,55 @@ class TrajectoryPlanner
 			// The next step would be to generate a *smooth* path for multiple goals
 		}
 
+		#define NUM_NEIGHBOURS 7
+		#define MAX_DIST 999999
+		const int neighbours_offset[][NUM_NEIGHBOURS][3];
+
+		void initNeighbours() {
+			// TODO.
+		}
+
+		//Should be int because of grid's nature but put float for maintainability.
+	  std::tuple<float,float> rotateOffset(float xOffset, float yOffset, int direction){
+	   switch(direction){
+	    case 2:
+	    case 3:
+	     return std::make_tuple(xOffset, -yOffset);
+	    case 4:
+	    case 5:
+	     return std::make_tuple(-xOffset, -yOffset);
+	    case 6:
+	    case 7:
+	     return std::make_tuple(-xOffset, yOffset);
+	    default:
+	     return std::make_tuple(xOffset, yOffset);
+	   }
+	  }
+
+	  float arcDistance(float xOffset, float yOffset){
+	   float alpha = atan(yOffset/xOffset);
+	   float theta = 180.0 - 2.0*alpha;
+	   return DRONE_TURNING_RADIUS * theta;
+	  }
+
+		void formAndReturnPath() {
+			// TODO
+		}
+
+		bool isBlocked() {
+			// TODO
+			return false;
+		}
+
     // Probably should clean this up. It's annoyingly long.
-    nav_msgs::Path a_star_search(int start_x, int start_y, int end_x, int end_y)
+    nav_msgs::Path a_star_search(float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y)
     {
+			// For ease of use, inputs are floats
+			int start_x, start_y;
+			int end_x, end_y;
+			mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
+			mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
+
       // Path object setup
       static int path_header_seq = 1;
       nav_msgs::Path path;
@@ -141,85 +198,123 @@ class TrajectoryPlanner
 
       // A* search setup
       std::set<MapCell> pq;
-      std::vector< std::vector<float> > distances(GRID_LENGTH, std::vector<float>(GRID_LENGTH, 99999));
-      std::vector< std::vector< std::pair<int, int> > > parents(GRID_LENGTH, std::vector< std::pair<int, int> >(GRID_LENGTH, std::make_pair(-1,-1) ));
-      distances[end_x][end_y] = 0;
-      pq.insert(MapCell(end_x, end_y, estimateDistance(start_x, start_y, end_x, end_y)));
 
-      bool found = false;
-      while(!pq.empty() && found == false)
-      {
-        // Dequeue
+			std::vector< std::vector< std::vector<float> > > distances(GRID_LENGTH, std::vector< std::vector<float> >(GRID_LENGTH, std::vector<float>(NUM_DIRECTIONS, MAX_DIST));
+
+      std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents(GRID_LENGTH, std::vector< std::vector< std::tuple<int, int, int> > >(GRID_LENGTH, std::vector<std::tuple<int, int, int> >(NUM_DIRECTIONS, std::make_tuple(-1,-1,-1) ));
+
+			// Start at the given direction.
+			// Use this to control headings at checkpoint
+			// TODO: Implement reversePath()
+			distances[start_x][start_y][start_direction] = 0;
+      pq.insert(MapCell(start_x, start_y, 0, start_direction));
+
+			while(!pq.empty()) {
+				// Dequeue
         MapCell current = *pq.begin();
         pq.erase(pq.begin());
 
-        // Check all neighbours
-        for(int i = -1; i < 2; i++)
-        {
-          for(int j = -1; j < 2; j++)
-          {
-            int temp_x = current.x + i;
-            int temp_y = current.y + j;
+				// Check for goal
+				if (current.x == end_x && current.y == end_y) {
+					// TODO: implement formAndReturnPath
+					formAndReturnPath();
+				}
 
-            if(validGridXy(temp_x, temp_y))
-            {
-							// Using estimateDistance gives realistic path cost,
-							// penalizing diagonal moves.
-							float new_path_dist = distances[current.x][current.y] + estimateDistance(0,0,i,j);
-              float new_distance = new_path_dist + estimateDistance(temp_x, temp_y, start_x, start_y);
-              // Relax neighbour
-              if(isWall(temp_x, temp_y))
-              {
-                distances[temp_x][temp_y] = -1;
-              }
-              else
-              {
-                if(distances[temp_x][temp_y] > new_path_dist)
-                {
-                  // If new_distance is shorter, replace it in the queue
-                  pq.erase(MapCell(temp_x, temp_y, distances[temp_x][temp_y]));
-                  distances[temp_x][temp_y] = new_path_dist;
-                  parents[temp_x][temp_y] = std::make_pair(current.x, current.y);
+				// Add neighbours to queue if value
+				for (int i=0; i<NUM_NEIGHBOURS; i++) {
+					int new_x = current.x + neighbours_offset[current.heading][i][0];
+					int new_y = current.y + neighbours_offset[current.heading][i][1];
+					int new_heading = neighbours_offset[current.heading][i][2];
+					float new_path_cost = current.distance + neighbours_offset[current.heading][i][3];
+					float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
 
-                  MapCell temp = MapCell(temp_x, temp_y, new_distance);
-                  pq.insert(temp);
+					// TODO: implement isBlocked
+					if (!isBlocked()) && distances[new_x][new_y][new_heading]>new_path_cost) {
+						pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
+						distances[new_x][new_y][new_heading] = new_path_cost;
+						parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
 
-                  // If at the start node (goal node)
-                  // generate the path using the parents table
-                  if(start_x == temp_x && start_y == temp_y)
-                  {
-                    int seq = 1;
-                    while( !(temp_x == end_x && temp_y == end_y) )
-                    {
-                      std::pair<int, int> temp = parents[temp_x][temp_y];
-                      temp_x = temp.first;
-                      temp_y = temp.second;
+						MapCell neighbour = MapCell(new_x, new_y, new_path_cost, new_heading);
+						pq.insert(neighbour);
+					}
 
-                      geometry_msgs::PoseStamped ps;
-                      ps.header.seq = seq;
-                      ps.header.stamp = ros::Time::now();
-                      ps.header.frame_id = "base_footprint";
-                      float temp_map_x, temp_map_y;
-                      gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
-                      ps.pose.position.x = temp_map_x;
-                      ps.pose.position.y = temp_map_y;
-                      path.poses.push_back(ps);
-                      seq++;
-                    }
-                    if (seq>1)
-                    {
-                      // The first node should be the robot's position
-                      // which is unnecessary
-                      path.poses.erase(path.poses.begin());
-                    }
-                    return path;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+				}
+
+			}
+			//
+      // while(!pq.empty())
+      // {
+      //   // Dequeue
+      //   MapCell current = *pq.begin();
+      //   pq.erase(pq.begin());
+			//
+      //   // Check all neighbours
+      //   for(int i = -1; i < 2; i++)
+      //   {
+      //     for(int j = -1; j < 2; j++)
+      //     {
+      //       int temp_x = current.x + i;
+      //       int temp_y = current.y + j;
+			//
+      //       if(validGridXy(temp_x, temp_y))
+      //       {
+			// 				// Using estimateDistance gives realistic path cost,
+			// 				// penalizing diagonal moves.
+			// 				float new_path_dist = distances[current.x][current.y] + estimateDistance(0,0,i,j);
+      //         float new_distance = new_path_dist + estimateDistance(temp_x, temp_y, start_x, start_y);
+      //         // Relax neighbour
+      //         if(isWall(temp_x, temp_y))
+      //         {
+      //           distances[temp_x][temp_y] = -1;
+      //         }
+      //         else
+      //         {
+      //           if(distances[temp_x][temp_y] > new_path_dist)
+      //           {
+      //             // If new_distance is shorter, replace it in the queue
+      //             pq.erase(MapCell(temp_x, temp_y, distances[temp_x][temp_y]));
+      //             distances[temp_x][temp_y] = new_path_dist;
+      //             parents[temp_x][temp_y] = std::make_pair(current.x, current.y);
+			//
+      //             MapCell temp = MapCell(temp_x, temp_y, new_distance);
+      //             pq.insert(temp);
+			//
+      //             // If at the start node (goal node)
+      //             // generate the path using the parents table
+      //             if(start_x == temp_x && start_y == temp_y)
+      //             {
+      //               int seq = 1;
+      //               while( !(temp_x == end_x && temp_y == end_y) )
+      //               {
+      //                 std::pair<int, int> temp = parents[temp_x][temp_y];
+      //                 temp_x = temp.first;
+      //                 temp_y = temp.second;
+			//
+      //                 geometry_msgs::PoseStamped ps;
+      //                 ps.header.seq = seq;
+      //                 ps.header.stamp = ros::Time::now();
+      //                 ps.header.frame_id = "base_footprint";
+      //                 float temp_map_x, temp_map_y;
+      //                 gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
+      //                 ps.pose.position.x = temp_map_x;
+      //                 ps.pose.position.y = temp_map_y;
+      //                 path.poses.push_back(ps);
+      //                 seq++;
+      //               }
+      //               if (seq>1)
+      //               {
+      //                 // The first node should be the robot's position
+      //                 // which is unnecessary
+      //                 path.poses.erase(path.poses.begin());
+      //               }
+      //               return path;
+      //             }
+      //           }
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
       return path;
     }
 
@@ -242,6 +337,7 @@ class TrajectoryPlanner
     }
     void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y)
     {
+			//TODO: Check whether correct
       map_x = occupancy_grid.info.origin.position.x + (grid_x + 0.5) * GRID_RESOLUTION;
       map_y = occupancy_grid.info.origin.position.y + (grid_y + 0.5) * GRID_RESOLUTION;
     }
