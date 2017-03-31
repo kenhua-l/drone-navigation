@@ -7,19 +7,21 @@
 #include <nav_msgs/Path.h>
 
 // Map definitions
-#define MAP_SIZE        10
+#define MAP_SIZE        5
+#define MAP_START_X			-2.5
+#define MAP_START_Y			-2.5
 #define GRID_STEPS      10
 #define GRID_RESOLUTION (1.0/GRID_STEPS)
-#define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
+#define GRID_LENGTH     (MAP_SIZE * GRID_STEPS)
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
 #define OBS_RADIUS			0.60
-#define START_X					1.5
+#define START_X					-1.5
 #define START_Y					1.5
-#define GOAL_X					3.5
-#define GOAL_Y					3.5
-#define CHECKPT_X				2.5
-#define CHECKPT_Y				3.5
+#define CHECKPT_X				2
+#define CHECKPT_Y				0
+#define GOAL_X					-1.5
+#define GOAL_Y					-1.5
 
 class TrajectoryPlanner
 {
@@ -63,16 +65,15 @@ class TrajectoryPlanner
 			occupancy_grid.info.resolution = GRID_RESOLUTION;
 			occupancy_grid.info.width = GRID_LENGTH;
 			occupancy_grid.info.height = GRID_LENGTH;
-			occupancy_grid.info.origin.position.x = - (GRID_RESOLUTION / 2.0);
-			occupancy_grid.info.origin.position.y = - (GRID_RESOLUTION / 2.0);
+			occupancy_grid.info.origin.position.x = MAP_START_X;
+			occupancy_grid.info.origin.position.y = MAP_START_Y;
 			occupancy_grid.data = grid_data;
 
 			// Some setup
-			putRectOnGrid(10, 50, 60, 60);
-			putRectOnGrid(50, 10, 60, 60);
-			putRectOnGrid(20, 70, 30, 100);
-			putRectOnGrid(40, 60, 50, 90);
-			a_star_path = a_star_search(1,1,100,100);
+			putObstaclesOnGrid();
+			a_star_path = a_star_search(START_X,START_Y,CHECKPT_X,CHECKPT_Y);
+			nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X, CHECKPT_Y, GOAL_X, GOAL_Y);
+			a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
 		}
 
 		// Just continously publish data for display in rviz
@@ -91,12 +92,19 @@ class TrajectoryPlanner
 
 		void putObstaclesOnGrid()
 		{
-			// Read obstacles from file
+			// TODO: Read obstacles from file
+			float obs[][2] = {{1,1},{1,-1},{-0.5,-0.5}};
 			// Create 60cm buffer around obstacles
+			for (int i=0; i<3; i++) {
+				putCircleOnGrid(obs[i][0],obs[i][1],OBS_RADIUS);
+			}
 		}
 
-		void putCircleOnGrid(int x, int y, float radius)
+		void putCircleOnGrid(float map_x, float map_y, float radius)
 		{
+			int x, y;
+			mapXyToGridXy(x,y,map_x,map_y);
+
 			int grid_radius = (int) (radius / GRID_RESOLUTION);
 			for (int i = -grid_radius; i < grid_radius; i++)
 			{
@@ -112,6 +120,7 @@ class TrajectoryPlanner
 			}
 		}
 
+		// For testing only.
 		void putRectOnGrid(int x1, int y1, int x2, int y2)
 		{
 			for (int i=x1; i<x2; i++)
@@ -130,8 +139,14 @@ class TrajectoryPlanner
 		}
 
     // Probably should clean this up. It's annoyingly long.
-    nav_msgs::Path a_star_search(int start_x, int start_y, int end_x, int end_y)
+    nav_msgs::Path a_star_search(float map_start_x, float map_start_y, float map_end_x, float map_end_y)
     {
+			// Convert from map to grid
+			int start_x, start_y;
+			int end_x, end_y;
+			mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
+			mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
+
       // Path object setup
       static int path_header_seq = 1;
       nav_msgs::Path path;
@@ -242,6 +257,7 @@ class TrajectoryPlanner
     }
     void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y)
     {
+			// Adds 0.5 to get center of grid cell
       map_x = occupancy_grid.info.origin.position.x + (grid_x + 0.5) * GRID_RESOLUTION;
       map_y = occupancy_grid.info.origin.position.y + (grid_y + 0.5) * GRID_RESOLUTION;
     }
