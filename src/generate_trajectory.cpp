@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>  // this included for the decimal point printing
 #include <stdlib.h>
 #include "ros/ros.h"
 #include <math.h>
@@ -8,6 +9,12 @@
 #define PI 3.14159
 class TrajectoryPlanner
 {
+<<<<<<< Updated upstream
+=======
+	private:
+		nav_msgs::OccupancyGrid occu  ncy_grid;
+
+>>>>>>> Stashed changes
 	public:
 		double PERIOD;
 		double ACCELERATION;
@@ -35,6 +42,7 @@ class TrajectoryPlanner
 			// The next step would be to generate a *smooth* path for multiple goals
 		}
 
+<<<<<<< Updated upstream
 		double distance(double x1, double y1, double x2, double y2)
     {
       return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
@@ -218,6 +226,117 @@ class TrajectoryPlanner
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
+=======
+		void takeoff()
+		{
+		  float deceleration = -0.5;
+		  float acceleration = 0.5;
+
+		  float velocity = 0.0;
+
+		  float targetDist = 1.0 ;
+		  float middleDist = targetDist / 2;
+
+		  float coorX = -1.500;
+		  float coorY = -1.500;
+		  float currentZ = 0.0 ;
+
+		  float liftof_time = 0.0;
+		  float interval = 0.05;
+
+		  float timecount= 0;
+		  int buffer =400;
+
+			while(currentZ <= 0.3)
+			{
+				velocity = velocity + (acceleration * interval);
+				currentZ = currentZ + (velocity * interval);
+				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+				timecount=timecount+interval;
+			}
+
+
+			while(buffer > 0)
+			{
+				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				buffer = buffer - 1;
+			}
+
+			while(velocity >= 0.0)
+			{
+
+
+				if(currentZ <= middleDist)
+				{
+					velocity = velocity + (acceleration * interval);
+					currentZ = currentZ + (velocity * interval);
+					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+				}
+				else
+				{
+					velocity = velocity + (deceleration * interval);
+					currentZ = currentZ + (velocity * interval);
+					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+				}
+
+				timecount=timecount+interval;
+			}
+			buffer = 400;
+			while(buffer > 0)
+			{
+				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				buffer = buffer - 1;
+			}
+
+		}
+
+		void landing()
+		{
+		  float acceleration = 0.3;
+		  float deceleration = -0.3;
+
+		  float velocity = 0.0;
+
+		  float land_targetDist = 0.0;
+		  float targetDist = 1.0 ;
+		  float middleDist = targetDist / 2;
+
+		  float coorX = -1.500;
+		  float coorY = -1.500;
+		  float landing_currentZ = 0.98;
+		  float currentZ = 0.0;
+
+		  float liftof_time = 0.0;
+		  float interval = 0.05;
+
+		  float timecount= 0;
+		  while (velocity <= 0.0)
+		  {
+		    //if(currentZ <= middleDist)
+		    if(landing_currentZ >= middleDist )
+		    {
+		      //velocity = velocity + (acceleration * interval);
+		      velocity = velocity + (deceleration * interval);
+		      landing_currentZ = landing_currentZ + (velocity * interval);
+		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+		    }
+		    else
+		    {
+		      //velocity = velocity + (deceleration * interval);
+		      velocity = velocity + (acceleration * interval);
+		      landing_currentZ = landing_currentZ + (velocity * interval);
+		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+		    }
+
+		    timecount=timecount+interval;
+		  }
+		  //Print out steady state
+		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		    //Print out to stop the propeller
+		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		}
+
+>>>>>>> Stashed changes
 		void generateTrajectory(nav_msgs::Path path)
 		{
       if(path.poses.size() == 0)
