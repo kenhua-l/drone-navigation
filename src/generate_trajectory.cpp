@@ -8,12 +8,19 @@
 #define PI 3.14159
 class TrajectoryPlanner
 {
-	private:
-		nav_msgs::OccupancyGrid occupancy_grid;
-
 	public:
+		double PERIOD;
+		double ACCELERATION;
+		double DECELERATION;
+		double MAX_VEL;
+
+
 		TrajectoryPlanner()
 		{
+			PERIOD = 0.05; // 50ms
+			ACCELERATION = 0.1;
+			DECELERATION = 0.15;
+			MAX_VEL = 0.5;
 		}
 
 		void putObstaclesOnGrid()
@@ -31,6 +38,11 @@ class TrajectoryPlanner
 		double distance(double x1, double y1, double x2, double y2)
     {
       return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
+    }
+
+		double distance(geometry_msgs::Pose a, geometry_msgs::Pose b)
+    {
+			return sqrt( pow(a.position.x - b.position.x, 2) + pow(a.position.y - b.position.y, 2));
     }
 
 		int find_index_nearest(nav_msgs::Path &path, double robot_x, double robot_y)
@@ -58,9 +70,21 @@ class TrajectoryPlanner
 
 		void convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y, double &local_x, double &local_y)
     {
+			// std::cout << "robot_x: " << robot_x << " robot_y: " << std::endl;
+			// std::cout << "x: " << x << " y: " << y << std::endl;
+			// std::cout << "a: " << x - robot_x << std::endl;
+			// std::cout << "b: " << cos(-robot_yaw) << std::endl;
+			// std::cout << "c: " << y - robot_y << std::endl;
+			// std::cout << "d: " << sin(-robot_yaw) << std::endl;
       local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
       local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
     }
+
+		// Find the angle between the origin and a line formed by two points
+		double findAngle(double x1, double y1, double x2, double y2)
+		{
+			return atan2( y2 - y1, x2 - x1 );
+		}
 
 		// Find the angle between the origin and a line formed by two points
 		double findAngle(geometry_msgs::Pose pose1, geometry_msgs::Pose pose2)
@@ -76,15 +100,21 @@ class TrajectoryPlanner
 
 		double calcRadius(double look_ahead_local_x, double look_ahead_local_y, double robot_x, double robot_y)
 		{
+			// std::cout << "denominator: " << 2 * (look_ahead_local_x - robot_x) << std::endl;
 			return pow( distance(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y), 2) / (2 * (look_ahead_local_x - robot_x));
 		}
 
-		void calcDestinationCoords(double robot_x, double robot_y, double robot_yaw, double look_ahead_local_x, double look_ahead_local_y, double distance_traveled, double &new_robot_x, double &new_robot_y)
+		void calcDestinationCoords(double robot_x, double robot_y, double robot_yaw, double look_ahead_local_x,
+															double look_ahead_local_y, double distance_traveled, double &new_robot_x,
+															double &new_robot_y, double &distance_from_look_ahead)
 		{
+			// std::cout << "look_ahead_local_x: " << look_ahead_local_x << " robot_y: " << robot_y << std::endl;
 			if( (look_ahead_local_x - robot_x < 0.0001) && (look_ahead_local_x - robot_x > -0.0001) )
 			{
 				new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
 				new_robot_y = robot_y + distance_traveled * sin(robot_yaw);
+				distance_from_look_ahead = distance(robot_x, robot_y, look_ahead_local_x, look_ahead_local_y);
+				// std::cout << "distance_from_look_ahead_aaaa: " << distance_from_look_ahead << std::endl;
 			}
 			else
 			{
@@ -108,22 +138,83 @@ class TrajectoryPlanner
 				rotate(robot_yaw + PI/2, new_x, new_y, new_x, new_y);
 				new_robot_x = new_x;
 				new_robot_y = new_y;
+
+				// Calculate angle from robot to origin of circle to look ahead point
+				double temp_angle = asin(look_ahead_local_y / radius);
+				// std::cout << "temp_angle: " << temp_angle << std::endl;
+				distance_from_look_ahead = radius * temp_angle;
+				// std::cout << "distance_from_look_ahead_bbbb: " << distance_from_look_ahead << std::endl;
 			}
 
 			/* Test case for this function
 			TrajectoryPlanner tp;
-			double x, y;
-			tp.calcDestinationCoords(0, 0, 0, 1, 1, 1, x, y);
-			std::cout << "x: " << x << " y: " << y << std::endl;
-			tp.calcDestinationCoords(0, 0, PI, 1, 1, 1, x, y);
-			std::cout << "x: " << x << " y: " << y << std::endl;
-			tp.calcDestinationCoords(0, 0, 0, 0, 1, 1, x, y);
-			std::cout << "x: " << x << " y: " << y << std::endl;
-			tp.calcDestinationCoords(0, 0, PI, 0, 1, 1, x, y);
-			std::cout << "x: " << x << " y: " << y << std::endl;
-			tp.calcDestinationCoords(0, 0, -PI/4, 0, 1, 1, x, y);
-			std::cout << "x: " << x << " y: " << y << std::endl;
+			double x, y, d;
+			tp.calcDestinationCoords(0, 0, 0, 1, 1, 1, x, y, d);
+			std::cout << "x: " << x << " y: " << y << " d: " << d << std::endl;
+			tp.calcDestinationCoords(0, 0, PI, 1, 1, 1, x, y, d);
+			std::cout << "x: " << x << " y: " << y << " d: " << d << std::endl;
+			tp.calcDestinationCoords(0, 0, 0, 0, 1, 1, x, y, d);
+			std::cout << "x: " << x << " y: " << y << " d: " << d << std::endl;
+			tp.calcDestinationCoords(0, 0, PI, 0, 1, 1, x, y, d);
+			std::cout << "x: " << x << " y: " << y << " d: " << d << std::endl;
+			tp.calcDestinationCoords(0, 0, -PI/4, 0, 1, 1, x, y, d);
+			std::cout << "x: " << x << " y: " << y << " d: " << d << std::endl;
 			*/
+		}
+
+		// This function assumes that the robot will be close enough to the path
+		double calcVelocity(double distance_from_look_ahead, nav_msgs::Path path, int look_ahead, double current_vel, bool &stop)
+		{
+			// std::cout << "distance_from_look_ahead: " << distance_from_look_ahead << std::endl;
+			double braking_time = current_vel / DECELERATION;
+			double braking_distance = current_vel * PERIOD + 0.5 * DECELERATION * pow(braking_time, 2) + 0.15; //0.15m is the buffer
+
+			double remaining_distance = distance_from_look_ahead;
+			double temp_distance;
+			bool slow_down = true;
+			for(int i = look_ahead; i < path.poses.size() - 1; i++)
+			{
+				temp_distance = distance(path.poses[i].pose, path.poses[i+1].pose);
+				remaining_distance += temp_distance;
+				if(braking_distance - remaining_distance <= 0)
+				{
+					slow_down = false;
+				}
+			}
+
+			double new_vel;
+			if(slow_down)
+			{
+			// 	std::cout << "slow down" << std::endl;
+				if(remaining_distance < 0.05)
+				{
+					new_vel = 0;
+					stop = true;
+					return new_vel;
+				}
+				else
+				{
+					double average_acc = -pow(current_vel, 2) / (2 * remaining_distance);
+					double acc_per_50_ms = average_acc * PERIOD;
+					new_vel = current_vel + acc_per_50_ms;
+				}
+			}
+			else
+			{
+				double acc_per_50_ms = DECELERATION * PERIOD;
+				// std::cout << "acc: " << acc_per_50_ms << std::endl;
+				new_vel = current_vel + acc_per_50_ms;
+				// std::cout << "new_vel in calcVelocity: " << new_vel << std::endl;
+				// std::cout << "speed up" << std::endl;
+				if(new_vel > MAX_VEL)
+				{
+					// std::cout << "max speed" << std::endl;
+					new_vel = MAX_VEL;
+				}
+			}
+			// std::cout << "end" << std::endl;
+			stop = false;
+			return new_vel;
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
@@ -138,60 +229,230 @@ class TrajectoryPlanner
       double robot_x = path.poses[0].pose.position.x;
       double robot_y = path.poses[0].pose.position.y;
       double robot_yaw = findAngle(path.poses[0].pose, path.poses[1].pose);
-      //Find nearest point to robot
-      int index = find_index_nearest(path, robot_x, robot_y);
 
-      //Find the look ahead point
-      geometry_msgs::Pose look_ahead_pose;
-      int look_ahead = 2;
-      if(index + look_ahead < path.poses.size())
-      {
-        look_ahead_pose = path.poses[index + look_ahead].pose;
-        // std::cout << "index: " << index + look_ahead << std::endl;
-      }
-      else
-      {
-        look_ahead_pose = path.poses[path.poses.size() - 1].pose;
-      }
-
-      //Convert the look ahead point to the robot's local coordinates
-      double look_ahead_local_x, look_ahead_local_y;
-      convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y, look_ahead_local_x, look_ahead_local_y);
-
-			double current_vel = 0.0;
-			double acceleration = 0.1;
-			double PERIOD = 0.05; // 50ms
-			double acc_per_50_ms = acceleration * PERIOD;
-			// Distance traveled in 50ms using current velocity
-			double distance_traveled = current_vel + 0.5 * pow(acc_per_50_ms, 2);
-			// Find the next point that the robot travelled to using distance_traveled
-			double new_robot_x, new_robot_y;
-			calcDestinationCoords(robot_x, robot_y, robot_yaw, distance_traveled, look_ahead_local_x, look_ahead_local_y, new_robot_x, new_robot_y);
-
-			// Find velocity for next point
-			double new_vel;
-			if(new_vel < 0.3)
+			double current_x_vel = 0;
+			double current_y_vel = 0;
+			double current_z_vel = 0;
+			bool stop = false;
+			while(!stop && ros::ok())
 			{
-				new_vel = current_vel + acc_per_50_ms;
-			}
-			else
-			{
-				new_vel = 0.3;
+				// std::cout << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
+				//Find nearest point to robot
+	      int index = find_index_nearest(path, robot_x, robot_y);
+
+	      //Find the look ahead point
+	      geometry_msgs::Pose look_ahead_pose;
+	      int look_ahead = 2;
+	      if(index + look_ahead < path.poses.size())
+	      {
+	        look_ahead_pose = path.poses[index + look_ahead].pose;
+	        // std::cout << "index: " << index + look_ahead << std::endl;
+	      }
+	      else
+	      {
+	        look_ahead_pose = path.poses[path.poses.size() - 1].pose;
+	      }
+
+	      //Convert the look ahead point to the robot's local coordinates
+	      double look_ahead_local_x, look_ahead_local_y;
+				// std::cout << "robot_x_main: " << robot_x << " robot_y_main: " << robot_y << std::endl;
+				// std::cout << "look_ahead_x: " << look_ahead_pose.position.x << " look_ahead_y: " << look_ahead_pose.position.y << std::endl;
+	      convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y, look_ahead_local_x, look_ahead_local_y);
+				// std::cout << "look_ahead_local_x_main: " << look_ahead_local_x << " look_ahead_local_y_main: " << look_ahead_local_y << std::endl;
+				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
+
+				double acc_per_50_ms = ACCELERATION * PERIOD;
+				// Distance traveled in 50ms using current velocity
+				double distance_traveled = current_vel + 0.5 * pow(acc_per_50_ms, 2);
+				// Find the next point that the robot travelled to using distance_traveled
+				double new_robot_x, new_robot_y, distance_from_look_ahead;
+				calcDestinationCoords(robot_x, robot_y, robot_yaw, distance_traveled, look_ahead_local_x, look_ahead_local_y, new_robot_x, new_robot_y, distance_from_look_ahead);
+
+				// Find velocity for next point
+				double new_vel = calcVelocity(distance_from_look_ahead, path, look_ahead, current_vel, stop);
+				// std::cout << "new_vel: " << new_vel << std::endl;
+				// Find change in yaw between current point and next point
+				double delta_yaw = findAngle(new_robot_x, new_robot_y, path.poses[index].pose.position.x, path.poses[index].pose.position.y);
+
+				// std::cout << "robot_yaw: " << robot_yaw << " sin: " << sin(robot_yaw) << " cos: " << cos(robot_yaw) << std::endl;
+				double new_x_vel = new_vel * cos(robot_yaw);
+				double new_y_vel = new_vel * sin(robot_yaw);
+				// std::cout << "new_x_vel: " << new_x_vel << " new_y_vel: " << new_y_vel << std::endl;
+				double new_z_vel = 0;
+
+				double current_x_acc = (new_x_vel - current_x_vel) / PERIOD;
+				double current_y_acc = (new_y_vel - current_y_vel) / PERIOD;
+				double current_z_acc = (new_z_vel - current_z_vel) / PERIOD;
+
+				// std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
+				std::cout << "new_robot_x: " << new_robot_x << std::endl;
+				std::cout << "new_robot_y: " << new_robot_y << std::endl;
+				robot_x = new_robot_x;
+				robot_y = new_robot_y;
+				robot_y += delta_yaw;
+				current_x_vel = new_x_vel;
+				current_y_vel = new_y_vel;
+				current_z_vel = new_z_vel;
+				// std::cout << current_x_vel << " " << current_y_vel << " " << current_z_vel << std::endl;
 			}
 
-			// Find acceleration between current point and next point
-			// Find change in yaw between current point and next point
-			// double curvature = 1.0 / radius;
-			// double delta_yaw = robot_yaw + curvature * distance_traveled;
 		}
 
 		void writeTrajectoryToFile()
 		{
 			// Format: x y z vx vy vz ax ay az head headv
 		}
+
+	private:
+		nav_msgs::OccupancyGrid occupancy_grid;
+
 };
+
+void add_pose_to_path(nav_msgs::Path &desired_path, float x, float y)
+{
+  static int seq = 1;
+  geometry_msgs::PoseStamped ps;
+  ps.header.seq = seq;
+  seq++;
+  ps.header.stamp = ros::Time::now();
+  ps.header.frame_id = "base_footprint";
+  ps.pose.position.x = x;
+  ps.pose.position.y = y;
+
+  desired_path.poses.push_back(ps);
+}
+
+nav_msgs::Path set_up_test_case()
+{
+  nav_msgs::Path desired_path;
+  add_pose_to_path(desired_path, 0.5, 0.5);
+  add_pose_to_path(desired_path, 0.5, 0.7);
+  add_pose_to_path(desired_path, 0.5, 0.9);
+  add_pose_to_path(desired_path, 0.5, 1.1);
+  add_pose_to_path(desired_path, 0.5, 1.3);
+  add_pose_to_path(desired_path, 0.5, 1.5);
+  add_pose_to_path(desired_path, 0.5, 1.7);
+  add_pose_to_path(desired_path, 0.5, 1.9);
+  add_pose_to_path(desired_path, 0.5, 2.1);
+  add_pose_to_path(desired_path, 0.5, 2.3);
+  add_pose_to_path(desired_path, 0.5, 2.5);
+  add_pose_to_path(desired_path, 0.5, 2.7);
+  add_pose_to_path(desired_path, 0.5, 2.9);
+  add_pose_to_path(desired_path, 0.5, 3.1);
+  add_pose_to_path(desired_path, 0.5, 3.3);
+  add_pose_to_path(desired_path, 0.5, 3.5);
+  add_pose_to_path(desired_path, 0.5, 3.7);
+  add_pose_to_path(desired_path, 0.5, 3.9);
+  add_pose_to_path(desired_path, 0.5, 4.1);
+  add_pose_to_path(desired_path, 0.5, 4.3);
+  add_pose_to_path(desired_path, 0.5, 4.5);
+  add_pose_to_path(desired_path, 0.5, 4.7);
+  add_pose_to_path(desired_path, 0.5, 4.9);
+
+  add_pose_to_path(desired_path, 0.503, 5.1);
+  add_pose_to_path(desired_path, 0.513, 5.197);
+  add_pose_to_path(desired_path, 0.556, 5.406);
+  add_pose_to_path(desired_path, 0.627, 5.604);
+  add_pose_to_path(desired_path, 0.733, 5.803);
+  add_pose_to_path(desired_path, 0.84, 5.951);
+  add_pose_to_path(desired_path, 0.975, 6.095);
+  add_pose_to_path(desired_path, 1.125, 6.218);
+  add_pose_to_path(desired_path, 1.28, 6.316);
+  add_pose_to_path(desired_path, 1.456, 6.398);
+  add_pose_to_path(desired_path, 1.645, 6.457);
+  add_pose_to_path(desired_path, 1.82, 6.489);
+  add_pose_to_path(desired_path, 2, 6.5);
+
+  add_pose_to_path(desired_path, 2, 6.5);
+  add_pose_to_path(desired_path, 2.2, 6.5);
+  add_pose_to_path(desired_path, 2.4, 6.5);
+  add_pose_to_path(desired_path, 2.6, 6.5);
+  add_pose_to_path(desired_path, 2.8, 6.5);
+  add_pose_to_path(desired_path, 3.0, 6.5);
+  add_pose_to_path(desired_path, 3.2, 6.5);
+  add_pose_to_path(desired_path, 3.4, 6.5);
+  add_pose_to_path(desired_path, 3.6, 6.5);
+  add_pose_to_path(desired_path, 3.8, 6.5);
+  add_pose_to_path(desired_path, 4.0, 6.5);
+  add_pose_to_path(desired_path, 4.2, 6.5);
+  add_pose_to_path(desired_path, 4.4, 6.5);
+  add_pose_to_path(desired_path, 4.6, 6.5);
+  add_pose_to_path(desired_path, 4.8, 6.5);
+  add_pose_to_path(desired_path, 5.0, 6.5);
+  add_pose_to_path(desired_path, 5.2, 6.5);
+  add_pose_to_path(desired_path, 5.4, 6.5);
+  add_pose_to_path(desired_path, 5.6, 6.5);
+  add_pose_to_path(desired_path, 5.8, 6.5);
+  add_pose_to_path(desired_path, 6.0, 6.5);
+  add_pose_to_path(desired_path, 6.2, 6.5);
+  add_pose_to_path(desired_path, 6.4, 6.5);
+  add_pose_to_path(desired_path, 6.6, 6.5);
+
+  add_pose_to_path(desired_path, 6.6, 6.3);
+  add_pose_to_path(desired_path, 6.6, 6.1);
+  add_pose_to_path(desired_path, 6.6, 5.9);
+  add_pose_to_path(desired_path, 6.6, 5.7);
+  add_pose_to_path(desired_path, 6.6, 5.5);
+  add_pose_to_path(desired_path, 6.6, 5.3);
+  add_pose_to_path(desired_path, 6.6, 5.1);
+  add_pose_to_path(desired_path, 6.6, 4.9);
+  add_pose_to_path(desired_path, 6.6, 4.7);
+  add_pose_to_path(desired_path, 6.6, 4.5);
+  add_pose_to_path(desired_path, 6.6, 4.3);
+  add_pose_to_path(desired_path, 6.6, 4.1);
+  add_pose_to_path(desired_path, 6.6, 3.9);
+  add_pose_to_path(desired_path, 6.6, 3.7);
+  add_pose_to_path(desired_path, 6.6, 3.5);
+  add_pose_to_path(desired_path, 6.6, 3.3);
+  add_pose_to_path(desired_path, 6.6, 3.1);
+  add_pose_to_path(desired_path, 6.6, 2.9);
+  add_pose_to_path(desired_path, 6.6, 2.7);
+  add_pose_to_path(desired_path, 6.6, 2.5);
+  add_pose_to_path(desired_path, 6.6, 2.3);
+  add_pose_to_path(desired_path, 6.6, 2.1);
+  add_pose_to_path(desired_path, 6.6, 1.9);
+  add_pose_to_path(desired_path, 6.6, 1.7);
+  add_pose_to_path(desired_path, 6.6, 1.5);
+  add_pose_to_path(desired_path, 6.6, 1.3);
+
+  add_pose_to_path(desired_path, 6.63, 1.163);
+  add_pose_to_path(desired_path, 6.41, 1.006);
+  add_pose_to_path(desired_path, 6.08, 0.76);
+  add_pose_to_path(desired_path, 5.86, 0.684);
+  add_pose_to_path(desired_path, 5.6, 0.65);
+  add_pose_to_path(desired_path, 5.39, 0.67);
+  add_pose_to_path(desired_path, 5.2, 0.725);
+  add_pose_to_path(desired_path, 5.01, 0.822);
+  add_pose_to_path(desired_path, 4.8, 1);
+
+  add_pose_to_path(desired_path, 4.8, 1.2);
+  add_pose_to_path(desired_path, 4.8, 1.4);
+  add_pose_to_path(desired_path, 4.8, 1.6);
+  add_pose_to_path(desired_path, 4.8, 1.8);
+  add_pose_to_path(desired_path, 4.8, 2.0);
+  add_pose_to_path(desired_path, 4.8, 2.2);
+  add_pose_to_path(desired_path, 4.8, 2.4);
+  add_pose_to_path(desired_path, 4.8, 2.6);
+  add_pose_to_path(desired_path, 4.8, 2.8);
+  add_pose_to_path(desired_path, 4.8, 3.0);
+  add_pose_to_path(desired_path, 4.8, 3.2);
+  add_pose_to_path(desired_path, 4.8, 3.4);
+  add_pose_to_path(desired_path, 4.8, 3.6);
+  add_pose_to_path(desired_path, 4.8, 3.8);
+  add_pose_to_path(desired_path, 4.8, 4.0);
+  add_pose_to_path(desired_path, 4.8, 4.2);
+  add_pose_to_path(desired_path, 4.8, 4.4);
+
+  desired_path.header.stamp = ros::Time::now();
+  desired_path.header.frame_id = "base_footprint";
+  return desired_path;
+}
 
 int main(int argc, char **argv)
 {
-
+	ros::init(argc, argv, "robotController");
+	ros::NodeHandle nh;
+	TrajectoryPlanner tp;
+	nav_msgs::Path path = set_up_test_case();
+	tp.generateTrajectory(path);
 }
