@@ -78,14 +78,16 @@ class TrajectoryPlanner
 
 		void convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y, double &local_x, double &local_y)
     {
-			// std::cout << "robot_x: " << robot_x << " robot_y: " << std::endl;
-			// std::cout << "x: " << x << " y: " << y << std::endl;
-			// std::cout << "a: " << x - robot_x << std::endl;
-			// std::cout << "b: " << cos(-robot_yaw) << std::endl;
-			// std::cout << "c: " << y - robot_y << std::endl;
-			// std::cout << "d: " << sin(-robot_yaw) << std::endl;
+			std::cout << "robot_x: " << robot_x << " robot_y: " << robot_y << std::endl;
+			std::cout << "x: " << x << " y: " << y << std::endl;
+			std::cout << "a: " << x - robot_x << std::endl;
+			std::cout << "b: " << cos(-robot_yaw) << std::endl;
+			std::cout << "c: " << y - robot_y << std::endl;
+			std::cout << "d: " << sin(-robot_yaw) << std::endl;
       local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
       local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
+			std::cout << "local_x: " << local_x << std::endl;
+			std::cout << "local_y: " << local_y << std::endl;
     }
 
 		// Find the angle between the origin and a line formed by two points
@@ -102,13 +104,17 @@ class TrajectoryPlanner
 
 		void rotate(double angle, double x, double y, double &new_x, double &new_y)
 		{
+			// std::cout << "a " << x <<std::endl;
+			// std::cout << "b " << cos(-angle) <<std::endl;
+			// std::cout << "c " << y <<std::endl;
+			// std::cout << "d " << sin(-angle) <<std::endl;
 			new_x = x * cos(-angle) - y * sin(-angle);
 			new_y = x * sin(-angle) + y * cos(-angle);
 		}
 
 		double calcRadius(double look_ahead_local_x, double look_ahead_local_y, double robot_x, double robot_y)
 		{
-			// std::cout << "denominator: " << 2 * (look_ahead_local_x - robot_x) << std::endl;
+			std::cout << "denominator: " << 2 * (look_ahead_local_x - robot_x) << std::endl;
 			return pow( distance(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y), 2) / (2 * (look_ahead_local_x - robot_x));
 		}
 
@@ -116,7 +122,7 @@ class TrajectoryPlanner
 															double look_ahead_local_y, double distance_traveled, double &new_robot_x,
 															double &new_robot_y, double &distance_from_look_ahead)
 		{
-			// std::cout << "look_ahead_local_x: " << look_ahead_local_x << " robot_y: " << robot_y << std::endl;
+			std::cout << "In calcDestinationCoords look_ahead_local_x: " << look_ahead_local_x << " look_ahead_local_y: " << look_ahead_local_y << std::endl;
 			if( (look_ahead_local_x - robot_x < 0.0001) && (look_ahead_local_x - robot_x > -0.0001) )
 			{
 				new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
@@ -127,7 +133,7 @@ class TrajectoryPlanner
 			else
 			{
 				double radius = calcRadius(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y);
-				// std::cout << "radius: " << radius << std::endl;
+				std::cout << "radius: " << radius << std::endl;
 				double theta = distance_traveled / radius;
 				// std::cout << "theta: " << theta << std::endl;
 				double temp_x, temp_y = 0;
@@ -140,12 +146,18 @@ class TrajectoryPlanner
 					temp_x = radius;
 				}
 				double new_x, new_y;
+				std::cout << "temp_x: " << temp_x << " temp_y: " << temp_y << std::endl;
 				rotate(theta, temp_x, temp_y, new_x, new_y);
+				// std::cout << "1 new_x: " << new_x << " new_y: " << new_y << std::endl;
 				new_x = new_x - temp_x + robot_x;
 				new_y = new_y + robot_y;
+				// std::cout << "2 new_x: " << new_x << " new_y: " << new_y << std::endl;
 				rotate(robot_yaw + PI/2, new_x, new_y, new_x, new_y);
+				// std::cout << "3 new_x: " << new_x << " new_y: " << new_y << std::endl;
 				new_robot_x = new_x;
 				new_robot_y = new_y;
+				// std::cout << "new_robot_x: " << new_robot_x << std::endl;
+				// std::cout << "new_robot_y: " << new_robot_y << std::endl;
 
 				// Calculate angle from robot to origin of circle to look ahead point
 				double temp_angle = asin(look_ahead_local_y / radius);
@@ -377,7 +389,7 @@ class TrajectoryPlanner
 				// std::cout << "robot_x_main: " << robot_x << " robot_y_main: " << robot_y << std::endl;
 				// std::cout << "look_ahead_x: " << look_ahead_pose.position.x << " look_ahead_y: " << look_ahead_pose.position.y << std::endl;
 	      convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y, look_ahead_local_x, look_ahead_local_y);
-				// std::cout << "look_ahead_local_x_main: " << look_ahead_local_x << " look_ahead_local_y_main: " << look_ahead_local_y << std::endl;
+				std::cout << "look_ahead_local_x_main: " << look_ahead_local_x << " look_ahead_local_y_main: " << look_ahead_local_y << std::endl;
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
 
 				double acc_per_50_ms = ACCELERATION * PERIOD;
@@ -404,8 +416,6 @@ class TrajectoryPlanner
 				double current_z_acc = (new_z_vel - current_z_vel) / PERIOD;
 
 				// std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
-				std::cout << "new_robot_x: " << new_robot_x << std::endl;
-				std::cout << "new_robot_y: " << new_robot_y << std::endl;
 				robot_x = new_robot_x;
 				robot_y = new_robot_y;
 				robot_y += delta_yaw;
@@ -414,7 +424,7 @@ class TrajectoryPlanner
 				current_z_vel = new_z_vel;
 				// std::cout << current_x_vel << " " << current_y_vel << " " << current_z_vel << std::endl;
 			}
-
+			std::cout << std::endl << std::endl;
 		}
 
 		void writeTrajectoryToFile()
