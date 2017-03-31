@@ -1,5 +1,4 @@
-#include <iostream>
-#include <iomanip>  // this included for the decimal point printing
+e#include <iostream>
 #include <stdlib.h>
 #include "ros/ros.h"
 #include <math.h>
@@ -9,12 +8,6 @@
 #define PI 3.14159
 class TrajectoryPlanner
 {
-<<<<<<< Updated upstream
-=======
-	private:
-		nav_msgs::OccupancyGrid occu  ncy_grid;
-
->>>>>>> Stashed changes
 	public:
 		double PERIOD;
 		double ACCELERATION;
@@ -42,7 +35,6 @@ class TrajectoryPlanner
 			// The next step would be to generate a *smooth* path for multiple goals
 		}
 
-<<<<<<< Updated upstream
 		double distance(double x1, double y1, double x2, double y2)
     {
       return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
@@ -78,16 +70,16 @@ class TrajectoryPlanner
 
 		void convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y, double &local_x, double &local_y)
     {
-			std::cout << "robot_x: " << robot_x << " robot_y: " << robot_y << std::endl;
-			std::cout << "x: " << x << " y: " << y << std::endl;
-			std::cout << "a: " << x - robot_x << std::endl;
-			std::cout << "b: " << cos(-robot_yaw) << std::endl;
-			std::cout << "c: " << y - robot_y << std::endl;
-			std::cout << "d: " << sin(-robot_yaw) << std::endl;
+			// std::cout << "robot_x: " << robot_x << " robot_y: " << robot_y << std::endl;
+			// std::cout << "x: " << x << " y: " << y << std::endl;
+			// std::cout << "a: " << x - robot_x << std::endl;
+			// std::cout << "b: " << cos(-robot_yaw) << std::endl;
+			// std::cout << "c: " << y - robot_y << std::endl;
+			// std::cout << "d: " << sin(-robot_yaw) << std::endl;
       local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
       local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
-			std::cout << "local_x: " << local_x << std::endl;
-			std::cout << "local_y: " << local_y << std::endl;
+			// std::cout << "local_x: " << local_x << std::endl;
+			// std::cout << "local_y: " << local_y << std::endl;
     }
 
 		// Find the angle between the origin and a line formed by two points
@@ -114,15 +106,14 @@ class TrajectoryPlanner
 
 		double calcRadius(double look_ahead_local_x, double look_ahead_local_y, double robot_x, double robot_y)
 		{
-			std::cout << "denominator: " << 2 * (look_ahead_local_x - robot_x) << std::endl;
-			return pow( distance(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y), 2) / (2 * (look_ahead_local_x - robot_x));
+			// std::cout << "denominator: " << 2 * (look_ahead_local_x - robot_x) << std::endl;
+			return ( pow(look_ahead_local_x, 2) + pow(look_ahead_local_y, 2) ) / (2 * look_ahead_local_x);
 		}
 
 		void calcDestinationCoords(double robot_x, double robot_y, double robot_yaw, double look_ahead_local_x,
 															double look_ahead_local_y, double distance_traveled, double &new_robot_x,
-															double &new_robot_y, double &distance_from_look_ahead)
+															double &new_robot_y, double &distance_from_look_ahead, double &delta_yaw)
 		{
-			std::cout << "In calcDestinationCoords look_ahead_local_x: " << look_ahead_local_x << " look_ahead_local_y: " << look_ahead_local_y << std::endl;
 			if( (look_ahead_local_x - robot_x < 0.0001) && (look_ahead_local_x - robot_x > -0.0001) )
 			{
 				new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
@@ -133,37 +124,11 @@ class TrajectoryPlanner
 			else
 			{
 				double radius = calcRadius(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y);
-				std::cout << "radius: " << radius << std::endl;
 				double theta = distance_traveled / radius;
-				// std::cout << "theta: " << theta << std::endl;
-				double temp_x, temp_y = 0;
-				if(look_ahead_local_x > 0)
-				{
-					temp_x = -radius;
-				}
-				else
-				{
-					temp_x = radius;
-				}
-				double new_x, new_y;
-				std::cout << "temp_x: " << temp_x << " temp_y: " << temp_y << std::endl;
-				rotate(theta, temp_x, temp_y, new_x, new_y);
-				// std::cout << "1 new_x: " << new_x << " new_y: " << new_y << std::endl;
-				new_x = new_x - temp_x + robot_x;
-				new_y = new_y + robot_y;
-				// std::cout << "2 new_x: " << new_x << " new_y: " << new_y << std::endl;
-				rotate(robot_yaw + PI/2, new_x, new_y, new_x, new_y);
-				// std::cout << "3 new_x: " << new_x << " new_y: " << new_y << std::endl;
-				new_robot_x = new_x;
-				new_robot_y = new_y;
-				// std::cout << "new_robot_x: " << new_robot_x << std::endl;
-				// std::cout << "new_robot_y: " << new_robot_y << std::endl;
-
-				// Calculate angle from robot to origin of circle to look ahead point
-				double temp_angle = asin(look_ahead_local_y / radius);
-				// std::cout << "temp_angle: " << temp_angle << std::endl;
-				distance_from_look_ahead = radius * temp_angle;
-				// std::cout << "distance_from_look_ahead_bbbb: " << distance_from_look_ahead << std::endl;
+				double delta_x = radius * sin(theta);
+				double delta_y = radius - radius * cos(theta);
+				new_robot_x = robot_x + delta_x * cos(robot_yaw);
+				new_robot_y = robot_y + delta_y * cos(robot_yaw);
 			}
 
 			/* Test case for this function
@@ -187,7 +152,7 @@ class TrajectoryPlanner
 		{
 			// std::cout << "distance_from_look_ahead: " << distance_from_look_ahead << std::endl;
 			double braking_time = current_vel / DECELERATION;
-			double braking_distance = current_vel * PERIOD + 0.5 * DECELERATION * pow(braking_time, 2) + 0.15; //0.15m is the buffer
+			double braking_distance = current_vel * braking_time + 0.5 * DECELERATION * pow(braking_time, 2) + 0.15; //0.15m is the buffer
 
 			double remaining_distance = distance_from_look_ahead;
 			double temp_distance;
@@ -238,117 +203,6 @@ class TrajectoryPlanner
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
-=======
-		void takeoff()
-		{
-		  float deceleration = -0.5;
-		  float acceleration = 0.5;
-
-		  float velocity = 0.0;
-
-		  float targetDist = 1.0 ;
-		  float middleDist = targetDist / 2;
-
-		  float coorX = -1.500;
-		  float coorY = -1.500;
-		  float currentZ = 0.0 ;
-
-		  float liftof_time = 0.0;
-		  float interval = 0.05;
-
-		  float timecount= 0;
-		  int buffer =400;
-
-			while(currentZ <= 0.3)
-			{
-				velocity = velocity + (acceleration * interval);
-				currentZ = currentZ + (velocity * interval);
-				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
-				timecount=timecount+interval;
-			}
-
-
-			while(buffer > 0)
-			{
-				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
-				buffer = buffer - 1;
-			}
-
-			while(velocity >= 0.0)
-			{
-
-
-				if(currentZ <= middleDist)
-				{
-					velocity = velocity + (acceleration * interval);
-					currentZ = currentZ + (velocity * interval);
-					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
-				}
-				else
-				{
-					velocity = velocity + (deceleration * interval);
-					currentZ = currentZ + (velocity * interval);
-					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
-				}
-
-				timecount=timecount+interval;
-			}
-			buffer = 400;
-			while(buffer > 0)
-			{
-				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
-				buffer = buffer - 1;
-			}
-
-		}
-
-		void landing()
-		{
-		  float acceleration = 0.3;
-		  float deceleration = -0.3;
-
-		  float velocity = 0.0;
-
-		  float land_targetDist = 0.0;
-		  float targetDist = 1.0 ;
-		  float middleDist = targetDist / 2;
-
-		  float coorX = -1.500;
-		  float coorY = -1.500;
-		  float landing_currentZ = 0.98;
-		  float currentZ = 0.0;
-
-		  float liftof_time = 0.0;
-		  float interval = 0.05;
-
-		  float timecount= 0;
-		  while (velocity <= 0.0)
-		  {
-		    //if(currentZ <= middleDist)
-		    if(landing_currentZ >= middleDist )
-		    {
-		      //velocity = velocity + (acceleration * interval);
-		      velocity = velocity + (deceleration * interval);
-		      landing_currentZ = landing_currentZ + (velocity * interval);
-		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
-		    }
-		    else
-		    {
-		      //velocity = velocity + (deceleration * interval);
-		      velocity = velocity + (acceleration * interval);
-		      landing_currentZ = landing_currentZ + (velocity * interval);
-		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
-		    }
-
-		    timecount=timecount+interval;
-		  }
-		  //Print out steady state
-		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
-		    //Print out to stop the propeller
-		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
-		}
-
->>>>>>> Stashed changes
 		void generateTrajectory(nav_msgs::Path path)
 		{
       if(path.poses.size() == 0)
@@ -365,7 +219,7 @@ class TrajectoryPlanner
 			double current_y_vel = 0;
 			double current_z_vel = 0;
 			bool stop = false;
-			while(!stop && ros::ok())
+			for(int j = 0; j < 10; j++)
 			{
 				// std::cout << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
 				//Find nearest point to robot
@@ -389,25 +243,22 @@ class TrajectoryPlanner
 				// std::cout << "robot_x_main: " << robot_x << " robot_y_main: " << robot_y << std::endl;
 				// std::cout << "look_ahead_x: " << look_ahead_pose.position.x << " look_ahead_y: " << look_ahead_pose.position.y << std::endl;
 	      convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y, look_ahead_local_x, look_ahead_local_y);
-				std::cout << "look_ahead_local_x_main: " << look_ahead_local_x << " look_ahead_local_y_main: " << look_ahead_local_y << std::endl;
+				// std::cout << "look_ahead_local_x_main: " << look_ahead_local_x << " look_ahead_local_y_main: " << look_ahead_local_y << std::endl;
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
 
 				double acc_per_50_ms = ACCELERATION * PERIOD;
 				// Distance traveled in 50ms using current velocity
-				double distance_traveled = current_vel + 0.5 * pow(acc_per_50_ms, 2);
+				double distance_traveled = current_vel * PERIOD + 0.5 * acc_per_50_ms * pow(PERIOD, 2);
 				// Find the next point that the robot travelled to using distance_traveled
-				double new_robot_x, new_robot_y, distance_from_look_ahead;
-				calcDestinationCoords(robot_x, robot_y, robot_yaw, distance_traveled, look_ahead_local_x, look_ahead_local_y, new_robot_x, new_robot_y, distance_from_look_ahead);
+				double new_robot_x, new_robot_y, distance_from_look_ahead, delta_yaw;
+				calcDestinationCoords(robot_x, robot_y, robot_yaw, look_ahead_local_x, look_ahead_local_y, distance_traveled, new_robot_x, new_robot_y, distance_from_look_ahead, delta_yaw);
 
 				// Find velocity for next point
 				double new_vel = calcVelocity(distance_from_look_ahead, path, look_ahead, current_vel, stop);
 				// std::cout << "new_vel: " << new_vel << std::endl;
-				// Find change in yaw between current point and next point
-				double delta_yaw = findAngle(new_robot_x, new_robot_y, path.poses[index].pose.position.x, path.poses[index].pose.position.y);
-
 				// std::cout << "robot_yaw: " << robot_yaw << " sin: " << sin(robot_yaw) << " cos: " << cos(robot_yaw) << std::endl;
-				double new_x_vel = new_vel * cos(robot_yaw);
-				double new_y_vel = new_vel * sin(robot_yaw);
+				double new_x_vel = new_vel * cos(robot_yaw); // TODO: should be next yaw
+				double new_y_vel = new_vel * sin(robot_yaw); // TODO: should be next yaw
 				// std::cout << "new_x_vel: " << new_x_vel << " new_y_vel: " << new_y_vel << std::endl;
 				double new_z_vel = 0;
 
@@ -415,10 +266,11 @@ class TrajectoryPlanner
 				double current_y_acc = (new_y_vel - current_y_vel) / PERIOD;
 				double current_z_acc = (new_z_vel - current_z_vel) / PERIOD;
 
-				// std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
+				std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
+				std::cout << "robot_x: " << robot_x << std::endl;
 				robot_x = new_robot_x;
 				robot_y = new_robot_y;
-				robot_y += delta_yaw;
+				robot_yaw += delta_yaw;
 				current_x_vel = new_x_vel;
 				current_y_vel = new_y_vel;
 				current_z_vel = new_z_vel;
