@@ -96,55 +96,45 @@ class TrajectoryPlanner
 
 		void rotate(double angle, double &x, double &y)
 		{
-			// std::cout << "a " << x <<std::endl;
-			// std::cout << "b " << cos(-angle) <<std::endl;
-			// std::cout << "c " << y <<std::endl;
-			// std::cout << "d " << sin(-angle) <<std::endl;
 			x = x * cos(angle) - y * sin(angle);
 			y = x * sin(angle) + y * cos(angle);
 		}
 
 		double calcRadius(double look_ahead_local_x, double look_ahead_local_y, double robot_x, double robot_y)
 		{
-			// std::cout << "denominator: " << 2 * (look_ahead_local_x - robot_x) << std::endl;
 			return abs( ( pow(look_ahead_local_x, 2) + pow(look_ahead_local_y, 2) ) / (2 * look_ahead_local_y) );
 		}
 
-		void calcDestinationCoords(double robot_x, double robot_y, double robot_yaw, double look_ahead_local_x,
-															double look_ahead_local_y, double distance_traveled, double &new_robot_x,
-															double &new_robot_y, double &distance_from_look_ahead, double &delta_yaw)
+		void calcNextPoint(double robot_x, double robot_y, double robot_yaw, double look_ahead_local_x, double look_ahead_local_y,
+											double current_vel, double &new_robot_x, double &new_robot_y, double &new_robot_yaw, double &new_vel)
 		{
-			// std::cout << "look_ahead_local_y: " << look_ahead_local_y << std::endl;
-			// std::cout << "look_ahead_local_y - robot_y:" << look_ahead_local_y - robot_y << std::endl;
 			if( (look_ahead_local_y < 0.0001) && (look_ahead_local_y > -0.0001) )
 			{
-				// std::cout << "going straight" << std::endl;
-				new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
-				new_robot_y = robot_y + distance_traveled * sin(robot_yaw);
-				distance_from_look_ahead = distance(robot_x, robot_y, look_ahead_local_x, look_ahead_local_y);
-				// std::cout << "distance_from_look_ahead_aaaa: " << distance_from_look_ahead << std::endl;
-				delta_yaw = 0;
+
+				// new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
+				// new_robot_y = robot_y + distance_traveled * sin(robot_yaw);
+				// distance_from_look_ahead = distance(robot_x, robot_y, look_ahead_local_x, look_ahead_local_y);
+				// delta_yaw = 0;
 			}
 			else
 			{
-				// std::cout << "following curve" << std::endl;
-				double radius = calcRadius(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y);
-				double theta = distance_traveled / radius;
-				double delta_x = radius * sin(theta);
-				double delta_y = radius - radius * cos(theta);
-				rotate(robot_yaw, delta_x, delta_y);
-				new_robot_x = robot_x + delta_x;
-				new_robot_y = robot_y + delta_y;
-				if(look_ahead_local_y < 0)
-				{
-					delta_yaw = -theta;
-					std::cout << " delta_yaw: " << delta_yaw << std::endl;
-				}
-				else
-				{
-					delta_yaw = theta;
-					std::cout << " delta_yaw: " << delta_yaw << std::endl;
-				}
+				// double radius = calcRadius(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y);
+				// double theta = distance_traveled / radius;
+				// double delta_x = radius * sin(theta);
+				// double delta_y = radius - radius * cos(theta);
+				// rotate(robot_yaw, delta_x, delta_y);
+				// new_robot_x = robot_x + delta_x;
+				// new_robot_y = robot_y + delta_y;
+				// if(look_ahead_local_y < 0)
+				// {
+				// 	delta_yaw = -theta;
+				// 	std::cout << " delta_yaw: " << delta_yaw << std::endl;
+				// }
+				// else
+				// {
+				// 	delta_yaw = theta;
+				// 	std::cout << " delta_yaw: " << delta_yaw << std::endl;
+				// }
 
 			}
 		}
@@ -189,19 +179,48 @@ class TrajectoryPlanner
 			else
 			{
 				double acc_per_50_ms = DECELERATION * PERIOD;
-				// std::cout << "acc: " << acc_per_50_ms << std::endl;
 				new_vel = current_vel + acc_per_50_ms;
-				// std::cout << "new_vel in calcVelocity: " << new_vel << std::endl;
-				// std::cout << "speed up" << std::endl;
 				if(new_vel > MAX_VEL)
 				{
-					// std::cout << "max speed" << std::endl;
 					new_vel = MAX_VEL;
 				}
 			}
-			// std::cout << "end" << std::endl;
 			stop = false;
 			return new_vel;
+		}
+
+		std::vector<double> calculatePathMaxVelocity(nav_msgs::Path path)
+		{
+			std::vector<double> result;
+			double temp, max_vel, total_distance = 0, sum_distance = 0;
+
+			for(int i = 0; i < path.poses.size() - 1; i++)
+			{
+				total_distance += distance(path.poses[i].pose, path.poses[i+1].pose);
+			}
+			double braking_distance = 1.0 / (2 * DECELERATION);
+			double remaining_distance, max_curving_speed, max_braking_speed;
+			for(int i = 0; i < path.poses.size() - 2; i++)
+			{
+				remaining_distance = total_distance - sum_distance;
+				temp = distance(path.poses[i].pose, path.poses[i+1].pose) + distance(path.poses[i+1].pose, path.poses[i+2].pose);
+				max_curving_speed = sqrt(temp * ACCELERATION);
+				if(braking_distance >= remaining_distance)
+				{
+					max_braking_speed = sqrt(2 * DECELERATION * remaining_distance);
+				}
+				else
+				{
+					max_braking_speed = 1;
+				}
+				max_vel = fmin(max_curving_speed, max_braking_speed);
+				if(max_vel > 1)
+				{
+					max_vel = 1;
+				}
+				result.push_back(max_vel);
+				sum_distance += distance(path.poses[i].pose, path.poses[i+1].pose);
+			}
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
@@ -211,6 +230,9 @@ class TrajectoryPlanner
       {
         return;
       }
+
+			// Calculate maximum velocity for each point
+			std::vector<double> path_max_vel = calculatePathMaxVelocity(path);
 
 			// Initialize robot coordinates and yaw
       double robot_x = path.poses[0].pose.position.x;
@@ -233,8 +255,6 @@ class TrajectoryPlanner
 	      if(index + look_ahead < path.poses.size())
 	      {
 	        look_ahead_pose = path.poses[index + look_ahead].pose;
-	        // std::cout << "look_ahead_global_x: " << look_ahead_pose.position.x << std::endl;
-					// std::cout << "look_ahead_global_y: " << look_ahead_pose.position.y << std::endl;
 	      }
 	      else
 	      {
@@ -243,43 +263,27 @@ class TrajectoryPlanner
 
 	      //Convert the look ahead point to the robot's local coordinates
 	      double look_ahead_local_x, look_ahead_local_y;
-				// std::cout << "robot_x_main: " << robot_x << " robot_y_main: " << robot_y << std::endl;
-				// std::cout << "look_ahead_x: " << look_ahead_pose.position.x << " look_ahead_y: " << look_ahead_pose.position.y << std::endl;
-				std::cout << "current_x_vel: " << current_x_vel << " current_y_vel: " << current_y_vel << std::endl;
-				std::cout << "robot_yaw: " << robot_yaw << std::endl;
 	      convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y, look_ahead_local_x, look_ahead_local_y);
-				// std::cout << "look_ahead_local_x_main: " << look_ahead_local_x << " look_ahead_local_y_main: " << look_ahead_local_y << std::endl;
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
 
-				double acc_per_50_ms = ACCELERATION * PERIOD;
-				// Distance traveled in 50ms using current velocity
-				double distance_traveled = current_vel * PERIOD + 0.5 * acc_per_50_ms * pow(PERIOD, 2);
-				// Find the next point that the robot travelled to using distance_traveled
-				double new_robot_x, new_robot_y, distance_from_look_ahead, delta_yaw;
-				calcDestinationCoords(robot_x, robot_y, robot_yaw, look_ahead_local_x, look_ahead_local_y, distance_traveled, new_robot_x, new_robot_y, distance_from_look_ahead, delta_yaw);
-				double new_robot_yaw = robot_yaw + delta_yaw;
-				// std::cout << "new_robot_yaw: " << new_robot_yaw << std::endl;
-				// Find velocity for next point
-				double new_vel = calcVelocity(distance_from_look_ahead, path, look_ahead, current_vel, stop);
-				// std::cout << "new_vel: " << new_vel << std::endl;
+				double new_robot_x, new_robot_y, new_robot_yaw, new_vel;
+				// Want to find new_vel, new_robot_x, new_robot_y, delta_yaw
+				calcNextPoint(robot_x, robot_y, robot_yaw, look_ahead_local_x, look_ahead_local_y, current_vel, new_robot_x, new_robot_y, new_robot_yaw, new_vel);
 				double new_x_vel = new_vel * cos(new_robot_yaw);
 				double new_y_vel = new_vel * sin(new_robot_yaw);
-				// std::cout << "new_x_vel: " << new_x_vel << " new_y_vel: " << new_y_vel << std::endl;
 				double new_z_vel = 0;
 
 				double current_x_acc = (new_x_vel - current_x_vel) / PERIOD;
 				double current_y_acc = (new_y_vel - current_y_vel) / PERIOD;
 				double current_z_acc = (new_z_vel - current_z_vel) / PERIOD;
 
-				std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
-				// std::cout << "robot_x: " << robot_x << std::endl;
+				// std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
 				robot_x = new_robot_x;
 				robot_y = new_robot_y;
 				robot_yaw = new_robot_yaw;
 				current_x_vel = new_x_vel;
 				current_y_vel = new_y_vel;
 				current_z_vel = new_z_vel;
-				// std::cout << current_x_vel << " " << current_y_vel << " " << current_z_vel << std::endl;
 				std::cout << std::endl;
 			}
 			std::cout << std::endl << std::endl;
