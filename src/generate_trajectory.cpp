@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "ros/ros.h"
 #include <math.h>
-
+#include <iomanip>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Path.h>
 #define PI 3.14159
@@ -68,7 +68,7 @@ class TrajectoryPlanner
       return path.poses.size() - 1;
     }
 
-		void convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y, double &local_x, double &local_y)
+		std::pair<double, double> convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y)
     {
 			// std::cout << "robot_x: " << robot_x << " robot_y: " << robot_y << std::endl;
 			// std::cout << "x: " << x << " y: " << y << std::endl;
@@ -76,10 +76,9 @@ class TrajectoryPlanner
 			// std::cout << "b: " << cos(-robot_yaw) << std::endl;
 			// std::cout << "c: " << y - robot_y << std::endl;
 			// std::cout << "d: " << sin(-robot_yaw) << std::endl;
-      local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
-      local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
-			// std::cout << "local_x: " << local_x << std::endl;
-			// std::cout << "local_y: " << local_y << std::endl;
+    	double local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
+      double local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
+			return std::make_pair(local_x, local_y);
     }
 
 		// Find the angle between the origin and a line formed by two points
@@ -105,37 +104,52 @@ class TrajectoryPlanner
 			return abs( ( pow(look_ahead_local_x, 2) + pow(look_ahead_local_y, 2) ) / (2 * look_ahead_local_y) );
 		}
 
-		void calcNextPoint(double robot_x, double robot_y, double robot_yaw, double look_ahead_local_x, double look_ahead_local_y,
-											double current_vel, double &new_robot_x, double &new_robot_y, double &new_robot_yaw, double &new_vel)
+		void calcNextPoint(double robot_x, double robot_y, double robot_yaw, double current_vel, std::pair<double, double> local_look_ahead_point,
+											double look_ahead_max_vel, double &new_robot_x, double &new_robot_y, double &new_robot_yaw, double &new_vel)
 		{
-			if( (look_ahead_local_y < 0.0001) && (look_ahead_local_y > -0.0001) )
+			if( (local_look_ahead_point.second < 0.0001) && (local_look_ahead_point.second > -0.0001) )
 			{
-
-				// new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
-				// new_robot_y = robot_y + distance_traveled * sin(robot_yaw);
-				// distance_from_look_ahead = distance(robot_x, robot_y, look_ahead_local_x, look_ahead_local_y);
-				// delta_yaw = 0;
+				// Find distance
+				double distance_to_look_ahead = distance(local_look_ahead_point.first, local_look_ahead_point.second, robot_x, robot_y);
+				double acc_per_50_ms = PERIOD * ( ( pow(look_ahead_max_vel, 2) - pow(current_vel, 2) ) / ( 2 * distance_to_look_ahead ) );
+				new_vel = current_vel + acc_per_50_ms;
+				if(new_vel > 1)
+				{
+					new_vel = 1;
+				}
+				double distance_traveled = (new_vel + current_vel) / 2 * PERIOD;
+				new_robot_x = robot_x + distance_traveled * cos(robot_yaw);
+				new_robot_y = robot_y + distance_traveled * sin(robot_yaw);
+				new_robot_yaw = robot_yaw;
 			}
 			else
 			{
-				// double radius = calcRadius(look_ahead_local_x, look_ahead_local_y, robot_x, robot_y);
-				// double theta = distance_traveled / radius;
-				// double delta_x = radius * sin(theta);
-				// double delta_y = radius - radius * cos(theta);
-				// rotate(robot_yaw, delta_x, delta_y);
-				// new_robot_x = robot_x + delta_x;
-				// new_robot_y = robot_y + delta_y;
-				// if(look_ahead_local_y < 0)
-				// {
-				// 	delta_yaw = -theta;
-				// 	std::cout << " delta_yaw: " << delta_yaw << std::endl;
-				// }
-				// else
-				// {
-				// 	delta_yaw = theta;
-				// 	std::cout << " delta_yaw: " << delta_yaw << std::endl;
-				// }
-
+				double radius = calcRadius(local_look_ahead_point.first, local_look_ahead_point.second, robot_x, robot_y);
+				// theta is the angle between robot position and look ahead point
+				double look_ahead_theta = 2 * asin( distance(local_look_ahead_point.first, local_look_ahead_point.second, robot_x, robot_y) / (2 * radius) );
+				double arc_distance_to_look_ahead = radius * look_ahead_theta;
+				double acc_per_50_ms = ( pow(look_ahead_max_vel, 2) - pow(current_vel, 2) ) / ( 2 * arc_distance_to_look_ahead ) * PERIOD;
+				new_vel = current_vel + acc_per_50_ms;
+				if(new_vel > 1)
+				{
+					new_vel = 1;
+				}
+				// double distance_traveled = ( pow(look_ahead_max_vel, 2) - pow(current_vel, 2) ) / ( 2 * acc_per_50_ms );
+				double distance_traveled = (new_vel + current_vel) / 2 * PERIOD;
+				double traveled_theta = distance_traveled / radius;
+				double delta_x = radius * sin(traveled_theta);
+				double delta_y = radius - radius * cos(traveled_theta);
+				rotate(robot_yaw, delta_x, delta_y);
+				new_robot_x = robot_x + delta_x;
+				new_robot_y = robot_y + delta_y;
+				if(local_look_ahead_point.second < 0)
+				{
+					new_robot_yaw = robot_yaw - traveled_theta;
+				}
+				else
+				{
+					new_robot_yaw = robot_yaw + traveled_theta;
+				}
 			}
 		}
 
@@ -209,7 +223,6 @@ class TrajectoryPlanner
 				if(braking_distance >= remaining_distance)
 				{
 					max_braking_speed = sqrt(2 * DECELERATION * remaining_distance);
-					std::cout << "max_braking_speed: " << max_braking_speed << " remaining_distance: " << remaining_distance << std::endl;
 				}
 				else
 				{
@@ -258,9 +271,9 @@ class TrajectoryPlanner
 			double current_y_vel = 0;
 			double current_z_vel = 0;
 			bool stop = false;
-			for(int j = 0; j < 400; j++)
+			for(int j = 0; j < 500; j++)
 			{
-				std::cout << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
+				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
 				//Find nearest point to robot
 	      int index = find_index_nearest(path, robot_x, robot_y);
 
@@ -277,13 +290,13 @@ class TrajectoryPlanner
 	      }
 
 	      //Convert the look ahead point to the robot's local coordinates
-	      double look_ahead_local_x, look_ahead_local_y;
-	      convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y, look_ahead_local_x, look_ahead_local_y);
+	      std::pair<double, double> local_look_ahead_point = convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y);
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
 
+				double look_ahead_max_vel = path_max_vel[index + look_ahead];
 				double new_robot_x, new_robot_y, new_robot_yaw, new_vel;
-				// Want to find new_vel, new_robot_x, new_robot_y, delta_yaw
-				calcNextPoint(robot_x, robot_y, robot_yaw, look_ahead_local_x, look_ahead_local_y, current_vel, new_robot_x, new_robot_y, new_robot_yaw, new_vel);
+				// Want to find new_robot_x, new_robot_y, new_robot_yaw, new_vel
+				calcNextPoint(robot_x, robot_y, robot_yaw, current_vel, local_look_ahead_point, look_ahead_max_vel, new_robot_x, new_robot_y, new_robot_yaw, new_vel);
 				double new_x_vel = new_vel * cos(new_robot_yaw);
 				double new_y_vel = new_vel * sin(new_robot_yaw);
 				double new_z_vel = 0;
@@ -292,16 +305,18 @@ class TrajectoryPlanner
 				double current_y_acc = (new_y_vel - current_y_vel) / PERIOD;
 				double current_z_acc = (new_z_vel - current_z_vel) / PERIOD;
 
-				// std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
+				double delta_yaw = new_robot_yaw - robot_yaw;
+
+				std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
 				robot_x = new_robot_x;
 				robot_y = new_robot_y;
 				robot_yaw = new_robot_yaw;
 				current_x_vel = new_x_vel;
 				current_y_vel = new_y_vel;
 				current_z_vel = new_z_vel;
-				std::cout << std::endl;
+				// std::cout << std::endl;
 			}
-			std::cout << std::endl << std::endl;
+			// std::cout << std::endl << std::endl;
 		}
 
 		void writeTrajectoryToFile()
@@ -461,10 +476,10 @@ int main(int argc, char **argv)
 
 	TrajectoryPlanner tp;
 	nav_msgs::Path path = set_up_test_case();
-	// tp.generateTrajectory(path);
-	std::vector<double> path_max_vel = tp.calculatePathMaxVelocity(path);
-	for(int i = 0; i < path_max_vel.size(); i++)
-	{
-		std::cout << path_max_vel[i] << std::endl;
-	}
+	tp.generateTrajectory(path);
+	// std::vector<double> path_max_vel = tp.calculatePathMaxVelocity(path);
+	// for(int i = 0; i < path_max_vel.size(); i++)
+	// {
+	// 	std::cout << path_max_vel[i] << std::endl;
+	// }
 }
