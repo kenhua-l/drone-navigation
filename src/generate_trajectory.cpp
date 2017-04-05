@@ -70,12 +70,6 @@ class TrajectoryPlanner
 
 		std::pair<double, double> convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y)
     {
-			// std::cout << "robot_x: " << robot_x << " robot_y: " << robot_y << std::endl;
-			// std::cout << "x: " << x << " y: " << y << std::endl;
-			// std::cout << "a: " << x - robot_x << std::endl;
-			// std::cout << "b: " << cos(-robot_yaw) << std::endl;
-			// std::cout << "c: " << y - robot_y << std::endl;
-			// std::cout << "d: " << sin(-robot_yaw) << std::endl;
     	double local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
       double local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
 			return std::make_pair(local_x, local_y);
@@ -139,9 +133,13 @@ class TrajectoryPlanner
 				double traveled_theta = distance_traveled / radius;
 				double delta_x = radius * sin(traveled_theta);
 				double delta_y = radius - radius * cos(traveled_theta);
+				std::cout << "look_ahead_local_y: " << local_look_ahead_point.second << std::endl;
+				std::cout << "(before rotation) delta_x: " << delta_x << " delta_y: " << delta_y << std::endl;
 				rotate(robot_yaw, delta_x, delta_y);
 				new_robot_x = robot_x + delta_x;
 				new_robot_y = robot_y + delta_y;
+				std::cout << "(after rotation) delta_x: " << delta_x << " delta_y: " << delta_y << std::endl;
+				std::cout << "new_robot_x: " << new_robot_x << " new_robot_y: " << new_robot_y << std::endl;
 				if(local_look_ahead_point.second < 0)
 				{
 					new_robot_yaw = robot_yaw - traveled_theta;
@@ -273,7 +271,7 @@ class TrajectoryPlanner
 			bool stop = false;
 			for(int j = 0; j < 500; j++)
 			{
-				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
+				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " " << std::endl;
 				//Find nearest point to robot
 	      int index = find_index_nearest(path, robot_x, robot_y);
 
@@ -288,7 +286,7 @@ class TrajectoryPlanner
 	      {
 	        look_ahead_pose = path.poses[path.poses.size() - 1].pose;
 	      }
-
+				std::cout << "index: " << index << " look ahead index: " << look_ahead + index << std::endl;
 	      //Convert the look ahead point to the robot's local coordinates
 	      std::pair<double, double> local_look_ahead_point = convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y);
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
@@ -299,6 +297,7 @@ class TrajectoryPlanner
 				calcNextPoint(robot_x, robot_y, robot_yaw, current_vel, local_look_ahead_point, look_ahead_max_vel, new_robot_x, new_robot_y, new_robot_yaw, new_vel);
 				double new_x_vel = new_vel * cos(new_robot_yaw);
 				double new_y_vel = new_vel * sin(new_robot_yaw);
+				std::cout << "new_vel: " << new_vel << " new_robot_yaw: " << new_robot_yaw << " new_x_vel: " << new_x_vel << " new_y_vel: " << new_y_vel << std::endl;
 				double new_z_vel = 0;
 
 				double current_x_acc = (new_x_vel - current_x_vel) / PERIOD;
@@ -307,16 +306,14 @@ class TrajectoryPlanner
 
 				double delta_yaw = new_robot_yaw - robot_yaw;
 
-				std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl;
+				std::cout << current_x_acc << " " << current_y_acc << " " << current_z_acc << " " << robot_yaw << " " << delta_yaw << std::endl << std::endl;
 				robot_x = new_robot_x;
 				robot_y = new_robot_y;
 				robot_yaw = new_robot_yaw;
 				current_x_vel = new_x_vel;
 				current_y_vel = new_y_vel;
 				current_z_vel = new_z_vel;
-				// std::cout << std::endl;
 			}
-			// std::cout << std::endl << std::endl;
 		}
 
 		void writeTrajectoryToFile()
