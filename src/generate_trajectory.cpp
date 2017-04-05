@@ -16,6 +16,7 @@
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
+#define OBS_FILE 				"/home/yzxj/Part2/obs.txt"
 #define OBS_RADIUS			0.60
 #define START_X					1.5
 #define START_Y					1.5
@@ -96,13 +97,16 @@ class TrajectoryPlanner
 			seq++;
 		}
 
-		void putObstaclesOnGrid()
+		void putObstaclesOnGrid(int n)
 		{
-			// TODO: Read obstacles from file
-			int[][] obs = {{1,1}, {1,-1}, {-0.5,0.5}};
-			// Create 60cm buffer around obstacles
-			for (int i=0; i<3; i++) {
-				putCircleOnGrid(obs[i][0], obs[i][1], OBS_RADIUS);
+			// Read obstacles from file and mark on grid
+			std::ifstream obsFile;
+			obsFile.open(OBS_FILE);
+			float obsIn[2];
+			for (int i=0; i<n; i+=) {
+				if (obsFile >> obsIn[0] >> obsIn[1]) {
+					putCircleOnGrid(obsIn[0],obsIn[1],OBS_RADIUS);
+				}
 			}
 		}
 
@@ -123,17 +127,6 @@ class TrajectoryPlanner
 			}
 		}
 
-		void putRectOnGrid(int x1, int y1, int x2, int y2)
-		{
-			for (int i=x1; i<x2; i++)
-			{
-				for (int j=y1; j<y2; j++)
-				{
-					occupancy_grid.data[gridXyToGridI(i,j)] = 100;
-				}
-			}
-		}
-
 		nav_msgs::Path generatePath()
 		{
 			// As a first step, generate a path between a start and an end goal
@@ -148,7 +141,7 @@ class TrajectoryPlanner
 			// TODO.
 		}
 
-		//Should be int because of grid's nature but put float for maintainability.
+		// Should be int because of grid's nature but put float for maintainability.
 	  std::tuple<float,float> rotateOffset(float xOffset, float yOffset, int direction){
 	   switch(direction){
 	    case 2:
@@ -166,13 +159,45 @@ class TrajectoryPlanner
 	  }
 
 	  float arcDistance(float xOffset, float yOffset){
-	   float alpha = atan(yOffset/xOffset);
-	   float theta = 180.0 - 2.0*alpha;
-	   return DRONE_TURNING_RADIUS * theta;
+			// s = r*theta
+			float alpha = atan(yOffset/xOffset);
+			float theta = 180.0 - 2.0*alpha;
+			return DRONE_TURNING_RADIUS * theta;
 	  }
 
-		void formAndReturnPath() {
-			// TODO
+		void formAndReturnPath(int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
+      // Path object setup
+      static int path_header_seq = 1;
+      nav_msgs::Path path;
+      path.header.seq = path_header_seq++;
+      path.header.stamp = ros::Time::now();
+      path.header.frame_id = "base_footprint";
+
+			int temp_x = ex;
+			int temp_y = ey;
+			int temp_dir = edir;
+			int seq = 1;
+	    // generate the path using the parents table
+			while( !(temp_x == sx && temp_y == sy && temp_dir == sdir) )
+      {
+        std::tuple<int, int, int> temp = parents[temp_x][temp_y][temp_dir];
+        temp_x = temp.get(0);
+        temp_y = temp.get(1);
+				temp_dir = temp.get(2);
+
+        geometry_msgs::PoseStamped ps;
+        ps.header.seq = seq;
+        ps.header.stamp = ros::Time::now();
+        ps.header.frame_id = "base_footprint";
+
+        float temp_map_x, temp_map_y;
+        gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
+        ps.pose.position.x = temp_map_x;
+        ps.pose.position.y = temp_map_y;
+        path.poses.insert(path.poses.begin(),ps);
+				seq++;
+      }
+      return path;
 		}
 
 		bool isBlocked() {
@@ -188,13 +213,6 @@ class TrajectoryPlanner
 			int end_x, end_y;
 			mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
 			mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
-
-      // Path object setup
-      static int path_header_seq = 1;
-      nav_msgs::Path path;
-      path.header.seq = path_header_seq++;
-      path.header.stamp = ros::Time::now();
-      path.header.frame_id = "base_footprint";
 
       // A* search setup
       std::set<MapCell> pq;
@@ -216,8 +234,7 @@ class TrajectoryPlanner
 
 				// Check for goal
 				if (current.x == end_x && current.y == end_y) {
-					// TODO: implement formAndReturnPath
-					formAndReturnPath();
+					formAndReturnPath(start_x, start_y, start_direction, current.x, current.y, current.direction, parents);
 				}
 
 				// Add neighbours to queue if value
@@ -229,7 +246,7 @@ class TrajectoryPlanner
 					float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
 
 					// TODO: implement isBlocked
-					if (!isBlocked()) && distances[new_x][new_y][new_heading]>new_path_cost) {
+					if (!isBlocked() && distances[new_x][new_y][new_heading]>new_path_cost) {
 						pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
 						distances[new_x][new_y][new_heading] = new_path_cost;
 						parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
@@ -241,80 +258,6 @@ class TrajectoryPlanner
 				}
 
 			}
-			//
-      // while(!pq.empty())
-      // {
-      //   // Dequeue
-      //   MapCell current = *pq.begin();
-      //   pq.erase(pq.begin());
-			//
-      //   // Check all neighbours
-      //   for(int i = -1; i < 2; i++)
-      //   {
-      //     for(int j = -1; j < 2; j++)
-      //     {
-      //       int temp_x = current.x + i;
-      //       int temp_y = current.y + j;
-			//
-      //       if(validGridXy(temp_x, temp_y))
-      //       {
-			// 				// Using estimateDistance gives realistic path cost,
-			// 				// penalizing diagonal moves.
-			// 				float new_path_dist = distances[current.x][current.y] + estimateDistance(0,0,i,j);
-      //         float new_distance = new_path_dist + estimateDistance(temp_x, temp_y, start_x, start_y);
-      //         // Relax neighbour
-      //         if(isWall(temp_x, temp_y))
-      //         {
-      //           distances[temp_x][temp_y] = -1;
-      //         }
-      //         else
-      //         {
-      //           if(distances[temp_x][temp_y] > new_path_dist)
-      //           {
-      //             // If new_distance is shorter, replace it in the queue
-      //             pq.erase(MapCell(temp_x, temp_y, distances[temp_x][temp_y]));
-      //             distances[temp_x][temp_y] = new_path_dist;
-      //             parents[temp_x][temp_y] = std::make_pair(current.x, current.y);
-			//
-      //             MapCell temp = MapCell(temp_x, temp_y, new_distance);
-      //             pq.insert(temp);
-			//
-      //             // If at the start node (goal node)
-      //             // generate the path using the parents table
-      //             if(start_x == temp_x && start_y == temp_y)
-      //             {
-      //               int seq = 1;
-      //               while( !(temp_x == end_x && temp_y == end_y) )
-      //               {
-      //                 std::pair<int, int> temp = parents[temp_x][temp_y];
-      //                 temp_x = temp.first;
-      //                 temp_y = temp.second;
-			//
-      //                 geometry_msgs::PoseStamped ps;
-      //                 ps.header.seq = seq;
-      //                 ps.header.stamp = ros::Time::now();
-      //                 ps.header.frame_id = "base_footprint";
-      //                 float temp_map_x, temp_map_y;
-      //                 gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
-      //                 ps.pose.position.x = temp_map_x;
-      //                 ps.pose.position.y = temp_map_y;
-      //                 path.poses.push_back(ps);
-      //                 seq++;
-      //               }
-      //               if (seq>1)
-      //               {
-      //                 // The first node should be the robot's position
-      //                 // which is unnecessary
-      //                 path.poses.erase(path.poses.begin());
-      //               }
-      //               return path;
-      //             }
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
       return path;
     }
 
