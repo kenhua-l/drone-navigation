@@ -27,289 +27,335 @@
 
 class TrajectoryPlanner
 {
-	private:
-		nav_msgs::OccupancyGrid occupancy_grid;
-		nav_msgs::Path a_star_path;
-    ros::Publisher grid_pub;
-    ros::Publisher path_pub;
+private:
+	nav_msgs::OccupancyGrid occupancy_grid;
+	nav_msgs::Path a_star_path;
+	ros::Publisher grid_pub;
+	ros::Publisher path_pub;
 
-    // Class used for path-finding
-    class MapCell
-    {
-      public:
-        int x;
-        int y;
-				float distance;
-				int heading;
-
-        MapCell(int x, int y, float distance, int heading)
-        {
-          this->x = x;
-          this->y = y;
-          this->distance = distance;
-					this->heading = heading;
-        }
-
-        bool operator<(MapCell other) const
-        {
-          return distance < other.distance;
-        }
-
-				void setHeading(int heading)
-				{
-					this->heading = heading;
-				}
-  	};
-
+	// Class used for path-finding
+	class MapCell
+	{
 	public:
-		TrajectoryPlanner(ros::NodeHandle &nh)
+		int x;
+		int y;
+		float distance;
+		int heading;
+
+		MapCell(int x, int y, float distance, int heading)
 		{
-			// Publish grid and path data for display in rviz
-      grid_pub = nh.advertise<nav_msgs::OccupancyGrid>("/occupancy_grid", 0);
-      path_pub = nh.advertise<nav_msgs::Path>("/a_star_path", 0);
-
-			// Initialize Occupancy Grid
-      std::vector<int8_t> grid_data(GRID_N, -1);
-			occupancy_grid.info.map_load_time = ros::Time::now();
-			occupancy_grid.info.resolution = GRID_RESOLUTION;
-			occupancy_grid.info.width = GRID_LENGTH;
-			occupancy_grid.info.height = GRID_LENGTH;
-			occupancy_grid.info.origin.position.x = MAP_START_X;
-			occupancy_grid.info.origin.position.y = MAP_START_Y;
-			occupancy_grid.data = grid_data;
-
-			// Some setup
-			putObstaclesOnGrid();
-			a_star_path = a_star_search(START_X,START_Y,CHECKPT_X,CHECKPT_Y);
+			this->x = x;
+			this->y = y;
+			this->distance = distance;
+			this->heading = heading;
 		}
 
-		// Just continously publish data for display in rviz
-		void loopActivity()
+		bool operator<(MapCell other) const
 		{
-			static int seq = 1;
+			return distance < other.distance;
+		}
 
-			occupancy_grid.header.seq = seq;
-			occupancy_grid.header.stamp = ros::Time::now();
-			occupancy_grid.header.frame_id = "base_footprint";
-			grid_pub.publish(occupancy_grid);
-			path_pub.publish(a_star_path);
+		void setHeading(int heading)
+		{
+			this->heading = heading;
+		}
+	};
 
+public:
+	TrajectoryPlanner(ros::NodeHandle &nh)
+	{
+		// Publish grid and path data for display in rviz
+		grid_pub = nh.advertise<nav_msgs::OccupancyGrid>("/occupancy_grid", 0);
+		path_pub = nh.advertise<nav_msgs::Path>("/a_star_path", 0);
+
+		// Initialize Occupancy Grid
+		std::vector<int8_t> grid_data(GRID_N, -1);
+		occupancy_grid.info.map_load_time = ros::Time::now();
+		occupancy_grid.info.resolution = GRID_RESOLUTION;
+		occupancy_grid.info.width = GRID_LENGTH;
+		occupancy_grid.info.height = GRID_LENGTH;
+		occupancy_grid.info.origin.position.x = MAP_START_X;
+		occupancy_grid.info.origin.position.y = MAP_START_Y;
+		occupancy_grid.data = grid_data;
+
+		// Some setup
+		putObstaclesOnGrid();
+		a_star_path = a_star_search(START_X,START_Y,CHECKPT_X,CHECKPT_Y);
+	}
+
+	// Just continously publish data for display in rviz
+	void loopActivity()
+	{
+		static int seq = 1;
+
+		occupancy_grid.header.seq = seq;
+		occupancy_grid.header.stamp = ros::Time::now();
+		occupancy_grid.header.frame_id = "base_footprint";
+		grid_pub.publish(occupancy_grid);
+		path_pub.publish(a_star_path);
+
+		seq++;
+	}
+
+	void putObstaclesOnGrid(int n)
+	{
+		// Read obstacles from file and mark on grid
+		std::ifstream obsFile;
+		obsFile.open(OBS_FILE);
+		float obsIn[2];
+		for (int i=0; i<n; i+=) {
+			if (obsFile >> obsIn[0] >> obsIn[1]) {
+				putCircleOnGrid(obsIn[0],obsIn[1],OBS_RADIUS);
+			}
+		}
+	}
+
+	void putCircleOnGrid(int x, int y, float radius)
+	{
+		int grid_radius = (int) (radius / GRID_RESOLUTION);
+		for (int i = -grid_radius; i < grid_radius; i++)
+		{
+			for (int j = -grid_radius; j < grid_radius; j++)
+			{
+				int curr_x = x + i;
+				int curr_y = y + j;
+				if (validGridXy(curr_x,curr_y) && i*i+j*j<=grid_radius*grid_radius)
+				{
+					occupancy_grid.data[gridXyToGridI(curr_x,curr_y)] = 100;
+				}
+			}
+		}
+	}
+
+	nav_msgs::Path generatePath()
+	{
+		// As a first step, generate a path between a start and an end goal
+		// The next step would be to generate a *smooth* path for multiple goals
+	}
+
+	#define MAX_DIST 999999
+	#define PI 3.14159
+	#define DRONE_TURN_RADIUS 0.5
+	#define DRONE_TURN_ARC (PI / 2.0 * DRONE_TURN_RADIUS)
+	#define DRONE_TURN_STEPS (int)(DRONE_TURN_ARC / GRID_RESOLUTION)
+	#define DRONE_TURN_STEP_RAD (GRID_RESOLUTION / DRONE_TURN_RADIUS)
+	#define NUM_NEIGHBOURS (2 * DRONE_TURN_STEPS + 1)
+	const int neighbours_offset[][NUM_NEIGHBOURS][3];
+
+	void initNeighbours() {
+		// TODO: Rotate base case to make 4 other directions
+		// TODO: Create diagonal base case and 4 directions
+		// NOTE: direction taken according to north (y)
+		float orig_x = GRID_RESOLUTION/2.0;
+		float orig_y = GRID_RESOLUTION/2.0;
+		int numSteps = DRONE_TURN_STEPS;
+		int numNeighbours = 2*numSteps + 1;
+
+		// First neighbour always goes forward
+		neighbours_offset[0][0][0] = 0;	// Dir0, neighbour0, grid_offset_x
+		neighbours_offset[0][0][1] = 1; // Dir0, neighbour0, grid_offset_y
+		neighbours_offset[0][0][1] = 0; // Dir0, neighbour0, new_direction
+
+		// Right turn neighbours
+		for (int i=1; i<numSteps+1; i++) {
+			float theta = i * DRONE_TURN_STEP_RAD;
+			float offset_x = DRONE_TURN_RADIUS * (1.0 - cos(theta);
+			float offset_y = DRONE_TURN_RADIUS * sin(theta);
+			neighbours_offset[0][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
+			neighbours_offset[0][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
+			neighbours_offset[0][i][2] = (int) (theta / (PI / 4));
+		}
+		// Left turn neighbours
+		for (int i=numSteps+1; i<numNeighbours; i++) {
+			float theta = i * DRONE_TURN_STEP_RAD;
+			float offset_x = -(DRONE_TURN_RADIUS * (1.0 - cos(theta));
+			float offset_y = DRONE_TURN_RADIUS * sin(theta);
+			neighbours_offset[0][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
+			neighbours_offset[0][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
+			neighbours_offset[0][i][2] = (8 - (int) (theta / (PI/4)))%8;
+		}
+	}
+
+	// Should be int because of grid's nature but put float for maintainability.
+	std::tuple<float,float> rotateOffset(float xOffset, float yOffset, int direction){
+		switch(direction){
+			case 2:
+			case 3:
+			return std::make_tuple(xOffset, -yOffset);
+			case 4:
+			case 5:
+			return std::make_tuple(-xOffset, -yOffset);
+			case 6:
+			case 7:
+			return std::make_tuple(-xOffset, yOffset);
+			default:
+			return std::make_tuple(xOffset, yOffset);
+		}
+	}
+
+	float arcDistance(float xOffset, float yOffset){
+		// s = r*theta
+		float alpha = atan(yOffset/xOffset);
+		float theta = 180.0 - 2.0*alpha;
+		return DRONE_TURN_RADIUS * theta;
+	}
+
+	void formPath(int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
+		// Path object setup
+		static int path_header_seq = 1;
+		nav_msgs::Path path;
+		path.header.seq = path_header_seq++;
+		path.header.stamp = ros::Time::now();
+		path.header.frame_id = "base_footprint";
+
+		int temp_x = ex;
+		int temp_y = ey;
+		int temp_dir = edir;
+		int seq = 1;
+		// generate the path using the parents table
+		while( !(temp_x == sx && temp_y == sy && temp_dir == sdir) )
+		{
+			std::tuple<int, int, int> temp = parents[temp_x][temp_y][temp_dir];
+			temp_x = temp.get(0);
+			temp_y = temp.get(1);
+			temp_dir = temp.get(2);
+
+			geometry_msgs::PoseStamped ps;
+			ps.header.seq = seq;
+			ps.header.stamp = ros::Time::now();
+			ps.header.frame_id = "base_footprint";
+
+			float temp_map_x, temp_map_y;
+			gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
+			ps.pose.position.x = temp_map_x;
+			ps.pose.position.y = temp_map_y;
+			path.poses.insert(path.poses.begin(),ps);
 			seq++;
 		}
+		return path;
+	}
 
-		void putObstaclesOnGrid(int n)
-		{
-			// Read obstacles from file and mark on grid
-			std::ifstream obsFile;
-			obsFile.open(OBS_FILE);
-			float obsIn[2];
-			for (int i=0; i<n; i+=) {
-				if (obsFile >> obsIn[0] >> obsIn[1]) {
-					putCircleOnGrid(obsIn[0],obsIn[1],OBS_RADIUS);
-				}
+	bool isBlocked(MapCell arr[]) {
+		// Check if the generated path is blocked by the obstacles
+		for (int i=0; i<arr.length-1; i++) {
+			int x = arr[i].x;
+			int y = arr[i].y;
+			if (isWall(x, y)) {
+				return true;
 			}
 		}
+		return false;
+	}
 
-		void putCircleOnGrid(int x, int y, float radius)
-		{
-			int grid_radius = (int) (radius / GRID_RESOLUTION);
-			for (int i = -grid_radius; i < grid_radius; i++)
-			{
-				for (int j = -grid_radius; j < grid_radius; j++)
-				{
-					int curr_x = x + i;
-					int curr_y = y + j;
-					if (validGridXy(curr_x,curr_y) && i*i+j*j<=grid_radius*grid_radius)
-					{
-						occupancy_grid.data[gridXyToGridI(curr_x,curr_y)] = 100;
-					}
-				}
+	// Probably should clean this up. It's annoyingly long.
+	nav_msgs::Path a_star_search(float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y)
+	{
+		// For ease of use, inputs are floats
+		int start_x, start_y;
+		int end_x, end_y;
+		mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
+		mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
+
+		// A* search setup
+		std::set<MapCell> pq;
+
+		std::vector< std::vector< std::vector<float> > > distances(GRID_LENGTH, std::vector< std::vector<float> >(GRID_LENGTH, std::vector<float>(NUM_DIRECTIONS, MAX_DIST));
+
+		std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents(GRID_LENGTH, std::vector< std::vector< std::tuple<int, int, int> > >(GRID_LENGTH, std::vector<std::tuple<int, int, int> >(NUM_DIRECTIONS, std::make_tuple(-1,-1,-1) ));
+
+		// Start at the given direction.
+		// Use this to control headings at checkpoint
+		// TODO: Implement reversePath()
+		distances[start_x][start_y][start_direction] = 0;
+		pq.insert(MapCell(start_x, start_y, 0, start_direction));
+
+		while(!pq.empty()) {
+			// Dequeue
+			MapCell current = *pq.begin();
+			pq.erase(pq.begin());
+
+			// Check for goal
+			if (current.x == end_x && current.y == end_y) {
+				formPath(start_x, start_y, start_direction, current.x, current.y, current.direction, parents);
 			}
-		}
 
-		nav_msgs::Path generatePath()
-		{
-			// As a first step, generate a path between a start and an end goal
-			// The next step would be to generate a *smooth* path for multiple goals
-		}
+			// Add neighbours to queue if value
+			// TODO:
+			// check front
+			// check Right (break if blocked)
+			// check left (break if blocked)
+			for (int i=0; i<NUM_NEIGHBOURS; i++) {
+				// TODO: extract
+				int new_x = current.x + neighbours_offset[current.heading][i][0];
+				int new_y = current.y + neighbours_offset[current.heading][i][1];
+				int new_heading = neighbours_offset[current.heading][i][2];
+				float new_path_cost = current.distance + neighbours_offset[current.heading][i][3];
+				float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
 
-		#define NUM_NEIGHBOURS 7
-		#define MAX_DIST 999999
-		const int neighbours_offset[][NUM_NEIGHBOURS][3];
+				// TODO: integrate isBlocked/isWall
+				if (!isBlocked() && distances[new_x][new_y][new_heading]>new_path_cost) {
+					pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
+					distances[new_x][new_y][new_heading] = new_path_cost;
+					parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
 
-		void initNeighbours() {
-			// TODO.
-		}
-
-		// Should be int because of grid's nature but put float for maintainability.
-	  std::tuple<float,float> rotateOffset(float xOffset, float yOffset, int direction){
-	   switch(direction){
-	    case 2:
-	    case 3:
-	     return std::make_tuple(xOffset, -yOffset);
-	    case 4:
-	    case 5:
-	     return std::make_tuple(-xOffset, -yOffset);
-	    case 6:
-	    case 7:
-	     return std::make_tuple(-xOffset, yOffset);
-	    default:
-	     return std::make_tuple(xOffset, yOffset);
-	   }
-	  }
-
-	  float arcDistance(float xOffset, float yOffset){
-			// s = r*theta
-			float alpha = atan(yOffset/xOffset);
-			float theta = 180.0 - 2.0*alpha;
-			return DRONE_TURNING_RADIUS * theta;
-	  }
-
-		void formAndReturnPath(int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
-      // Path object setup
-      static int path_header_seq = 1;
-      nav_msgs::Path path;
-      path.header.seq = path_header_seq++;
-      path.header.stamp = ros::Time::now();
-      path.header.frame_id = "base_footprint";
-
-			int temp_x = ex;
-			int temp_y = ey;
-			int temp_dir = edir;
-			int seq = 1;
-	    // generate the path using the parents table
-			while( !(temp_x == sx && temp_y == sy && temp_dir == sdir) )
-      {
-        std::tuple<int, int, int> temp = parents[temp_x][temp_y][temp_dir];
-        temp_x = temp.get(0);
-        temp_y = temp.get(1);
-				temp_dir = temp.get(2);
-
-        geometry_msgs::PoseStamped ps;
-        ps.header.seq = seq;
-        ps.header.stamp = ros::Time::now();
-        ps.header.frame_id = "base_footprint";
-
-        float temp_map_x, temp_map_y;
-        gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
-        ps.pose.position.x = temp_map_x;
-        ps.pose.position.y = temp_map_y;
-        path.poses.insert(path.poses.begin(),ps);
-				seq++;
-      }
-      return path;
-		}
-
-		bool isBlocked() {
-			// TODO
-			return false;
-		}
-
-    // Probably should clean this up. It's annoyingly long.
-    nav_msgs::Path a_star_search(float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y)
-    {
-			// For ease of use, inputs are floats
-			int start_x, start_y;
-			int end_x, end_y;
-			mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
-			mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
-
-      // A* search setup
-      std::set<MapCell> pq;
-
-			std::vector< std::vector< std::vector<float> > > distances(GRID_LENGTH, std::vector< std::vector<float> >(GRID_LENGTH, std::vector<float>(NUM_DIRECTIONS, MAX_DIST));
-
-      std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents(GRID_LENGTH, std::vector< std::vector< std::tuple<int, int, int> > >(GRID_LENGTH, std::vector<std::tuple<int, int, int> >(NUM_DIRECTIONS, std::make_tuple(-1,-1,-1) ));
-
-			// Start at the given direction.
-			// Use this to control headings at checkpoint
-			// TODO: Implement reversePath()
-			distances[start_x][start_y][start_direction] = 0;
-      pq.insert(MapCell(start_x, start_y, 0, start_direction));
-
-			while(!pq.empty()) {
-				// Dequeue
-        MapCell current = *pq.begin();
-        pq.erase(pq.begin());
-
-				// Check for goal
-				if (current.x == end_x && current.y == end_y) {
-					formAndReturnPath(start_x, start_y, start_direction, current.x, current.y, current.direction, parents);
-				}
-
-				// Add neighbours to queue if value
-				for (int i=0; i<NUM_NEIGHBOURS; i++) {
-					int new_x = current.x + neighbours_offset[current.heading][i][0];
-					int new_y = current.y + neighbours_offset[current.heading][i][1];
-					int new_heading = neighbours_offset[current.heading][i][2];
-					float new_path_cost = current.distance + neighbours_offset[current.heading][i][3];
-					float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
-
-					// TODO: implement isBlocked
-					if (!isBlocked() && distances[new_x][new_y][new_heading]>new_path_cost) {
-						pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
-						distances[new_x][new_y][new_heading] = new_path_cost;
-						parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
-
-						MapCell neighbour = MapCell(new_x, new_y, new_path_cost, new_heading);
-						pq.insert(neighbour);
-					}
-
+					MapCell neighbour = MapCell(new_x, new_y, new_path_cost, new_heading);
+					pq.insert(neighbour);
 				}
 
 			}
-      return path;
-    }
 
-		// Aux functions
-		int gridXyToGridI(int x, int y)
-		{
-			return y*GRID_LENGTH + x;
 		}
-		void gridIToGridXy(int &grid_x, int &grid_y, int i)
-    {
-      // occupancy_grid.data uses a row-major order, so we need to convert
-      grid_x = (int) (i % occupancy_grid.info.width);
-      grid_y = (int) (i / occupancy_grid.info.width);
-    }
+		return path;
+	}
 
-		void mapXyToGridXy(int &grid_x, int &grid_y, float map_x, float map_y)
-    {
-      grid_x = (int)((map_x - occupancy_grid.info.origin.position.x)/GRID_RESOLUTION);
-      grid_y = (int)((map_y - occupancy_grid.info.origin.position.y)/GRID_RESOLUTION);
-    }
-    void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y)
-    {
-			//TODO: Check whether correct
-      map_x = occupancy_grid.info.origin.position.x + (grid_x + 0.5) * GRID_RESOLUTION;
-      map_y = occupancy_grid.info.origin.position.y + (grid_y + 0.5) * GRID_RESOLUTION;
-    }
-    bool isWall(int x, int y)
-    {
-      int index = gridXyToGridI(x, y);
-      int value = occupancy_grid.data[index];
-      return (value == 100);
-    }
-		bool validGridXy(int x, int y)
-    {
-      return (x >= 0 && y >= 0 && x < GRID_LENGTH && y < GRID_LENGTH);
-    }
-    float estimateDistance(float x1, float y1, float x2, float y2)
-    {
-      return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
-    }
+	// Aux functions
+	int gridXyToGridI(int x, int y)
+	{
+		return y*GRID_LENGTH + x;
+	}
+	void gridIToGridXy(int &grid_x, int &grid_y, int i)
+	{
+		// occupancy_grid.data uses a row-major order, so we need to convert
+		grid_x = (int) (i % occupancy_grid.info.width);
+		grid_y = (int) (i / occupancy_grid.info.width);
+	}
+
+	void mapXyToGridXy(int &grid_x, int &grid_y, float map_x, float map_y)
+	{
+		grid_x = (int)((map_x - occupancy_grid.info.origin.position.x)/GRID_RESOLUTION);
+		grid_y = (int)((map_y - occupancy_grid.info.origin.position.y)/GRID_RESOLUTION);
+	}
+	void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y)
+	{
+		map_x = occupancy_grid.info.origin.position.x + (grid_x + 0.5) * GRID_RESOLUTION;
+		map_y = occupancy_grid.info.origin.position.y + (grid_y + 0.5) * GRID_RESOLUTION;
+	}
+	bool isWall(int x, int y)
+	{
+		int index = gridXyToGridI(x, y);
+		int value = occupancy_grid.data[index];
+		return (value == 100);
+	}
+	bool validGridXy(int x, int y)
+	{
+		return (x >= 0 && y >= 0 && x < GRID_LENGTH && y < GRID_LENGTH);
+	}
+	float estimateDistance(float x1, float y1, float x2, float y2)
+	{
+		return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
+	}
 
 
 
-		void generateTrajectory(nav_msgs::Path path)
-		{
-			// Generate the velocity, acceleration profile and write it to a file
-		}
+	void generateTrajectory(nav_msgs::Path path)
+	{
+		// Generate the velocity, acceleration profile and write it to a file
+	}
 
-		void writeTrajectoryToFile()
-		{
-			// Format: x y z vx vy vz ax ay az head headv
-		}
+	void writeTrajectoryToFile()
+	{
+		// Format: x y z vx vy vz ax ay az head headv
+	}
 };
 
 int main(int argc, char **argv)
@@ -318,12 +364,12 @@ int main(int argc, char **argv)
 	ros::NodeHandle nh;
 	TrajectoryPlanner tp(nh);
 
-  ros::Rate loop_rate(10);
-  while(ros::ok())
-  {
+	ros::Rate loop_rate(10);
+	while(ros::ok())
+	{
 		tp.loopActivity();
-    ros::spinOnce();
-    loop_rate.sleep();
-  }
-  return 0;
+		ros::spinOnce();
+		loop_rate.sleep();
+	}
+	return 0;
 }
