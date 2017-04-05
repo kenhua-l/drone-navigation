@@ -192,7 +192,7 @@ class TrajectoryPlanner
 		std::vector<double> calculatePathMaxVelocity(nav_msgs::Path path)
 		{
 			std::vector<double> result;
-			double temp, max_vel, total_distance = 0, sum_distance = 0;
+			double temp, calculated_vel, total_distance = 0, sum_distance = 0;
 
 			for(int i = 0; i < path.poses.size() - 1; i++)
 			{
@@ -201,26 +201,41 @@ class TrajectoryPlanner
 			double braking_distance = 1.0 / (2 * DECELERATION);
 			double remaining_distance, max_curving_speed, max_braking_speed;
 			for(int i = 0; i < path.poses.size() - 2; i++)
+			// for(int i = 0; i < 10; i++)
 			{
 				remaining_distance = total_distance - sum_distance;
-				temp = distance(path.poses[i].pose, path.poses[i+1].pose) + distance(path.poses[i+1].pose, path.poses[i+2].pose);
-				max_curving_speed = sqrt(temp * ACCELERATION);
+				// temp = distance(path.poses[i].pose, path.poses[i+1].pose) + distance(path.poses[i+1].pose, path.poses[i+2].pose);
+				max_curving_speed = MAX_VEL * distance(path.poses[i].pose, path.poses[i+2].pose) / ( distance(path.poses[i].pose, path.poses[i+1].pose) + distance(path.poses[i+1].pose, path.poses[i+2].pose) );
 				if(braking_distance >= remaining_distance)
 				{
 					max_braking_speed = sqrt(2 * DECELERATION * remaining_distance);
+					std::cout << "max_braking_speed: " << max_braking_speed << " remaining_distance: " << remaining_distance << std::endl;
 				}
 				else
 				{
 					max_braking_speed = 1;
 				}
-				max_vel = fmin(max_curving_speed, max_braking_speed);
-				if(max_vel > 1)
+				// std::cout << "curve_speed: " << max_curving_speed << " max_braking_speed: " << max_braking_speed << std::endl;
+				calculated_vel = fmin(max_curving_speed, max_braking_speed);
+				if(calculated_vel > 1)
 				{
-					max_vel = 1;
+					calculated_vel = 1;
 				}
-				result.push_back(max_vel);
+				result.push_back(calculated_vel);
 				sum_distance += distance(path.poses[i].pose, path.poses[i+1].pose);
 			}
+
+			remaining_distance = total_distance - sum_distance;
+			max_braking_speed = sqrt(2 * DECELERATION * remaining_distance);
+			// For second last point in path
+			result.push_back(max_braking_speed);
+			sum_distance += distance(path.poses[ path.poses.size() - 2 ].pose, path.poses[ path.poses.size() - 1].pose);
+			// Last point in path has zero velocity
+			remaining_distance = total_distance - sum_distance;
+			max_braking_speed = sqrt(2 * DECELERATION * remaining_distance);
+			result.push_back(max_braking_speed);
+
+			return result;
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
@@ -446,5 +461,10 @@ int main(int argc, char **argv)
 
 	TrajectoryPlanner tp;
 	nav_msgs::Path path = set_up_test_case();
-	tp.generateTrajectory(path);
+	// tp.generateTrajectory(path);
+	std::vector<double> path_max_vel = tp.calculatePathMaxVelocity(path);
+	for(int i = 0; i < path_max_vel.size(); i++)
+	{
+		std::cout << path_max_vel[i] << std::endl;
+	}
 }
