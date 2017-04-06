@@ -105,7 +105,6 @@ catkin_package(
 ###########
 ## Build ##
 ###########
-
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
@@ -114,6 +113,7 @@ catkin_package(
 # add_library(drone_navigation
 #   src/${PROJECT_NAME}/drone_navigation.cpp
 # )
+add_definitions(-std=c++11)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries

@@ -1,16 +1,18 @@
 #include <iostream>
-#include <stdlib.h>
-#include "ros/ros.h"
-#include <math.h>
 #include <tuple>
+#include <fstream>
+
+#include <stdlib.h>
+#include <math.h>
+#include "ros/ros.h"
 
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Path.h>
 
 // Map definitions
 #define MAP_SIZE        5
-#define MAP_START_X			-2.5
-#define MAP_START_Y			-2.5
+#define MAP_START_X			0
+#define MAP_START_Y			0
 #define GRID_STEPS      10
 #define GRID_RESOLUTION (1.0/GRID_STEPS)
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
@@ -24,6 +26,16 @@
 #define GOAL_Y					3.5
 #define CHECKPT_X				2.5
 #define CHECKPT_Y				3.5
+// Directional A-star definitions
+#define MAX_DIST 							999999
+#define PI 										3.14159
+#define DRONE_TURN_RADIUS 		0.5
+#define DRONE_TURN_ARC 				(PI / 2.0 * DRONE_TURN_RADIUS)
+#define DRONE_TURN_STEPS 			(int)(DRONE_TURN_ARC / GRID_RESOLUTION)
+#define DRONE_TURN_STEP_RAD 	(GRID_RESOLUTION / DRONE_TURN_RADIUS)
+#define NUM_DIRECTIONS 				8
+#define NUM_NEIGHBOURS_RIGHT 	DRONE_TURN_STEPS
+#define NUM_NEIGHBOURS 				(2 * DRONE_TURN_STEPS)
 
 class TrajectoryPlanner
 {
@@ -32,6 +44,7 @@ private:
 	nav_msgs::Path a_star_path;
 	ros::Publisher grid_pub;
 	ros::Publisher path_pub;
+	int neighbours_offset[][NUM_NEIGHBOURS][4];
 
 	// Class used for path-finding
 	class MapCell
@@ -79,8 +92,14 @@ public:
 		occupancy_grid.data = grid_data;
 
 		// Some setup
-		putObstaclesOnGrid();
-		a_star_path = a_star_search(START_X,START_Y,CHECKPT_X,CHECKPT_Y);
+		putObstaclesOnGrid(3);
+		initNeighbours();
+
+		// Get path(s)
+		nav_msgs::Path a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
+		nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
+		reversePath(a_star_path);
+		a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
 	}
 
 	// Just continously publish data for display in rviz
@@ -103,7 +122,7 @@ public:
 		std::ifstream obsFile;
 		obsFile.open(OBS_FILE);
 		float obsIn[2];
-		for (int i=0; i<n; i+=) {
+		for (int i=0; i<n; i++) {
 			if (obsFile >> obsIn[0] >> obsIn[1]) {
 				putCircleOnGrid(obsIn[0],obsIn[1],OBS_RADIUS);
 			}
@@ -133,73 +152,37 @@ public:
 		// The next step would be to generate a *smooth* path for multiple goals
 	}
 
-	#define MAX_DIST 999999
-	#define PI 3.14159
-	#define DRONE_TURN_RADIUS 0.5
-	#define DRONE_TURN_ARC (PI / 2.0 * DRONE_TURN_RADIUS)
-	#define DRONE_TURN_STEPS (int)(DRONE_TURN_ARC / GRID_RESOLUTION)
-	#define DRONE_TURN_STEP_RAD (GRID_RESOLUTION / DRONE_TURN_RADIUS)
-	#define NUM_NEIGHBOURS_LEFT DRONE_TURN_STEPS
-	#define NUM_NEIGHBOURS (2 * DRONE_TURN_STEPS + 1)
-	const int neighbours_offset[][NUM_NEIGHBOURS][4];
-
 	void initNeighbours() {
-		// TODO: Rotate base case to make 4 other directions
-		// TODO: Create diagonal base case and 4 directions
 		// NOTE: direction taken according to north (y)
 		float orig_x = GRID_RESOLUTION/2.0;
 		float orig_y = GRID_RESOLUTION/2.0;
-		int numSteps = DRONE_TURN_STEPS;
-		int numNeighbours = 2*numSteps + 1;
 
-		// First neighbour always goes forward
-		neighbours_offset[0][0][0] = 0;	// Dir0, neighbour0, grid_offset_x
-		neighbours_offset[0][0][1] = 1; // Dir0, neighbour0, grid_offset_y
-		neighbours_offset[0][0][1] = 0; // Dir0, neighbour0, new_direction
-
-    for(int dir=0; dir<8; dir++){
-      float direction_theta = PI/4 * dir;
-		// Right turn neighbours
-		for (int i=1; i<numSteps+1; i++) {
-			float theta = i * DRONE_TURN_STEP_RAD;
-			float base_offset_x = DRONE_TURN_RADIUS * (1.0 - cos(theta);
-			float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
-      float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta))
-      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta))
-			neighbours_offset[dir][i][0] = (int) (((offset_x + orig_x)/GRID_RESOLUTION));
-			neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
-			neighbours_offset[dir][i][2] = (int) dir + (theta / (PI / 4));
-			neighbours_offset[dir][i][3] = arcDistance(offset_x, offset_y);
-		}
-		// Left turn neighbours
-		for (int i=numSteps+1; i<numNeighbours; i++) {
-			float theta = i * DRONE_TURN_STEP_RAD;
-			float base_offset_x = -(DRONE_TURN_RADIUS * (1.0 - cos(theta));
-			float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
-      float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta))
-      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta))
-			neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
-			neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
-			neighbours_offset[dir][i][2] = (8 + dir - (int) (theta / (PI/4)))%8;
-			neighbours_offset[dir][i][3] = arcDistance(offset_x, offset_y);
-		}
-  }
-	}
-
-	// Should be int because of grid's nature but put float for maintainability.
-	std::tuple<float,float,int> rotateOffset(float xOffset, float yOffset, int start_direction, int end_direction){
-		switch(start_direction){
-			case 2:
-			case 3:
-			return std::make_tuple(xOffset, -yOffset, start_direction+2);
-			case 4:
-			case 5:
-			return std::make_tuple(-xOffset, -yOffset, start_direction+4);
-			case 6:
-			case 7:
-			return std::make_tuple(-xOffset, yOffset);
-			default:
-			return std::make_tuple(xOffset, yOffset);
+		for(int dir=0; dir<8; dir++){
+			float direction_theta = PI/4 * dir;
+			// Right turn neighbours
+			for (int i=0; i<NUM_NEIGHBOURS_RIGHT; i++) {
+				float theta = i * DRONE_TURN_STEP_RAD;
+				float base_offset_x = DRONE_TURN_RADIUS * (1.0 - cos(theta));
+				float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
+				float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta));
+				float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta));
+				neighbours_offset[dir][i][0] = (int) (((offset_x + orig_x)/GRID_RESOLUTION));
+				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
+				neighbours_offset[dir][i][2] = (int) dir + (theta / (PI / 4));
+				neighbours_offset[dir][i][3] = arcDistance(offset_x, offset_y);
+			}
+			// Left turn neighbours
+			for (int i=NUM_NEIGHBOURS_RIGHT; i<NUM_NEIGHBOURS; i++) {
+				float theta = i * DRONE_TURN_STEP_RAD;
+				float base_offset_x = -(DRONE_TURN_RADIUS * (1.0 - cos(theta)));
+				float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
+				float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta));
+				float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta));
+				neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
+				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
+				neighbours_offset[dir][i][2] = (8 + dir - (int) (theta / (PI/4)))%8;
+				neighbours_offset[dir][i][3] = arcDistance(offset_x, offset_y);
+			}
 		}
 	}
 
@@ -226,9 +209,9 @@ public:
 		while( !(temp_x == sx && temp_y == sy && temp_dir == sdir) )
 		{
 			std::tuple<int, int, int> temp = parents[temp_x][temp_y][temp_dir];
-			temp_x = temp.get(0);
-			temp_y = temp.get(1);
-			temp_dir = temp.get(2);
+			temp_x = std::get<0>(temp);
+			temp_y = std::get<1>(temp);
+			temp_dir = std::get<2>(temp);
 
 			geometry_msgs::PoseStamped ps;
 			ps.header.seq = seq;
@@ -245,14 +228,14 @@ public:
 		return path;
 	}
 
-  nav_msgs::Path reversePath(nav_msgs::Path path){
-    return std::reverse(path.poses.begin(), path.poses.end());
-  }
+	void reversePath(nav_msgs::Path path){
+		std::reverse(path.poses.begin(), path.poses.end());
+	}
 
 
 	bool isBlocked(MapCell arr[]) {
 		// Check if the generated path is blocked by the obstacles
-		for (int i=0; i<arr.length-1; i++) {
+		for (int i=0; i<sizeof(arr)-1; i++) {
 			int x = arr[i].x;
 			int y = arr[i].y;
 			if (isWall(x, y)) {
@@ -263,8 +246,7 @@ public:
 	}
 
 	// Probably should clean this up. It's annoyingly long.
-	nav_msgs::Path a_star_search(float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y)
-	{
+	nav_msgs::Path a_star_search(float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y) {
 		// For ease of use, inputs are floats
 		int start_x, start_y;
 		int end_x, end_y;
@@ -274,9 +256,9 @@ public:
 		// A* search setup
 		std::set<MapCell> pq;
 
-		std::vector< std::vector< std::vector<float> > > distances(GRID_LENGTH, std::vector< std::vector<float> >(GRID_LENGTH, std::vector<float>(NUM_DIRECTIONS, MAX_DIST));
+		std::vector< std::vector< std::vector<float> > > distances(GRID_LENGTH, std::vector< std::vector<float> >(GRID_LENGTH, std::vector<float>(NUM_DIRECTIONS, MAX_DIST)));
 
-		std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents(GRID_LENGTH, std::vector< std::vector< std::tuple<int, int, int> > >(GRID_LENGTH, std::vector<std::tuple<int, int, int> >(NUM_DIRECTIONS, std::make_tuple(-1,-1,-1) ));
+		std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents(GRID_LENGTH, std::vector< std::vector< std::tuple<int, int, int> > >(GRID_LENGTH, std::vector<std::tuple<int, int, int> >(NUM_DIRECTIONS, std::make_tuple(-1,-1,-1) )));
 
 		// Start at the given direction.
 		// Use this to control headings at checkpoint
@@ -291,32 +273,28 @@ public:
 
 			// Check for goal
 			if (current.x == end_x && current.y == end_y) {
-				return formPath(start_x, start_y, start_direction, current.x, current.y, current.direction, parents);
+				return formPath(start_x, start_y, start_direction, current.x, current.y, current.heading, parents);
 			}
 
 			// Add neighbours to queue
-			// check front
-			if (checkIfWallAndEnqueueNeighbour(current, 0, pq, distances, parents)) {
-				continue;
-			}
 			// check right (break if blocked)
-			for (int i=1; i<NUM_NEIGHBOURS_LEFT+1; i++) {
-				if (!checkIfWallAndEnqueueNeighbour(current, i, pq, distances, parents)) {
+			for (int i=0; i<NUM_NEIGHBOURS_RIGHT; i++) {
+				if (!checkIfWallAndEnqueueNeighbour(current, i, end_x, end_y, pq, distances, parents)) {
 					break;
 				}
 			}
 			// check left (break if blocked)
-			for (int i=NUM_NEIGHBOURS_LEFT+1; i<NUM_NEIGHBOURS; i++) {
-				if (!checkIfWallAndEnqueueNeighbour(current, i, pq, distances, parents)) {
+			for (int i=NUM_NEIGHBOURS_RIGHT; i<NUM_NEIGHBOURS; i++) {
+				if (!checkIfWallAndEnqueueNeighbour(current, i, end_x, end_y, pq, distances, parents)) {
 					break;
 				}
 			}
 		}
-		return formPath(start_x, start_y, start_direction, start_x, start_y, start_direction, parents;
+		return formPath(start_x, start_y, start_direction, start_x, start_y, start_direction, parents);
 	}
 
 	// Returns false if neighbour is a wall
-	bool checkIfWallAndEnqueueNeighbour(MapCell current, int neighbour_i, std::set<MapCell> pq, std::vector< std::vector< std::vector<float> > > distances, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
+	bool checkIfWallAndEnqueueNeighbour(MapCell current, int neighbour_i, int end_x, int end_y, std::set<MapCell> pq, std::vector< std::vector< std::vector<float> > > distances, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
 		int new_x = current.x + neighbours_offset[current.heading][neighbour_i][0];
 		int new_y = current.y + neighbours_offset[current.heading][neighbour_i][1];
 		int new_heading = neighbours_offset[current.heading][neighbour_i][2];
