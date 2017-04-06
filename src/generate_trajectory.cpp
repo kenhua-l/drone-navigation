@@ -108,11 +108,15 @@ class TrajectoryPlanner
 		void calcNextPoint(double robot_x, double robot_y, double robot_yaw, double current_vel, std::pair<double, double> local_look_ahead_point,
 											double look_ahead_max_vel, double &new_robot_x, double &new_robot_y, double &new_robot_yaw, double &new_vel)
 		{
+			// std::cout << "look_ahead_max_vel: " << look_ahead_max_vel << std::endl;
 			if( (local_look_ahead_point.second < 0.0001) && (local_look_ahead_point.second > -0.0001) )
 			{
+				// std::cout << "straight" << std::endl;
 				// Find distance
-				double distance_to_look_ahead = distance(local_look_ahead_point.first, local_look_ahead_point.second, robot_x, robot_y);
+				double distance_to_look_ahead = distance(local_look_ahead_point.first, local_look_ahead_point.second, 0, 0);
+				// std::cout << "numerator: " << pow(look_ahead_max_vel, 2) - pow(current_vel, 2) << " denominator: " << 2 * distance_to_look_ahead << std::endl;
 				double acc_per_50_ms = PERIOD * ( ( pow(look_ahead_max_vel, 2) - pow(current_vel, 2) ) / ( 2 * distance_to_look_ahead ) );
+				// std::cout << "acc_per_50_ms: " << acc_per_50_ms << std::endl;
 				new_vel = current_vel + acc_per_50_ms;
 				if(new_vel > 1)
 				{
@@ -125,6 +129,7 @@ class TrajectoryPlanner
 			}
 			else
 			{
+				// std::cout << "curve" << std::endl;
 				// std::cout << "local_look_ahead_point_x: " << local_look_ahead_point.first << " local_look_ahead_point_y: " << local_look_ahead_point.second << std::endl;
 				double radius = calcRadius(local_look_ahead_point.first, local_look_ahead_point.second);
 				// std::cout << "radius: " << radius << std::endl;
@@ -136,6 +141,7 @@ class TrajectoryPlanner
 				// std::cout << "look_ahead_theta: " << look_ahead_theta << std::endl;
 				double arc_distance_to_look_ahead = radius * look_ahead_theta;
 				double acc_per_50_ms = ( pow(look_ahead_max_vel, 2) - pow(current_vel, 2) ) / ( 2 * arc_distance_to_look_ahead ) * PERIOD;
+				// std::cout << "acc_per_50_ms: " << acc_per_50_ms << std::endl;
 				// std::cout << "look_ahead_max_vel: " << look_ahead_max_vel << std::endl;
 				// std::cout << "arc_distance_to_look_ahead: " << arc_distance_to_look_ahead << std::endl;
 				new_vel = current_vel + acc_per_50_ms;
@@ -287,7 +293,7 @@ class TrajectoryPlanner
 			double current_y_vel = 0;
 			double current_z_vel = 0;
 			bool stop = false;
-			for(int i = 0; i < 950; i++)
+			while(!stop)
 			{
 				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
 				// std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " " << std::endl;
@@ -296,7 +302,7 @@ class TrajectoryPlanner
 
 	      //Find the look ahead point
 
-	      int look_ahead = 7;
+	      int look_ahead = 3;
 				int look_ahead_index = index + look_ahead;
 				if(look_ahead_index >= path.poses.size())
 				{
@@ -332,6 +338,11 @@ class TrajectoryPlanner
 				current_x_vel = new_x_vel;
 				current_y_vel = new_y_vel;
 				current_z_vel = new_z_vel;
+
+				if(index == look_ahead_index && fabs(new_vel) < 0.02)
+				{
+					stop = true;
+				}
 			}
 		}
 
