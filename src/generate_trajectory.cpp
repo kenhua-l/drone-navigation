@@ -96,10 +96,10 @@ public:
 		initNeighbours();
 
 		// Get path(s)
-		nav_msgs::Path a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
-		nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
-		reversePath(a_star_path);
-		a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
+		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
+		// nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
+		// reversePath(a_star_path);
+		// a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
 	}
 
 	// Just continously publish data for display in rviz
@@ -252,6 +252,7 @@ public:
 		int end_x, end_y;
 		mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
 		mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
+		std::cout << "End: " << end_x << ", " << end_y << std::endl;
 
 		// A* search setup
 		std::set<MapCell> pq;
