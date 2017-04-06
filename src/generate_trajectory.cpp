@@ -44,8 +44,8 @@ private:
 	nav_msgs::Path a_star_path;
 	ros::Publisher grid_pub;
 	ros::Publisher path_pub;
-	int neighbours_offset[][NUM_NEIGHBOURS][3];
-	float neighbours_offset_dist[][NUM_NEIGHBOURS];
+	int neighbours_offset[NUM_DIRECTIONS][NUM_NEIGHBOURS][3];
+	float neighbours_offset_dist[NUM_DIRECTIONS][NUM_NEIGHBOURS];
 
 	// Class used for path-finding
 	class MapCell
@@ -93,16 +93,11 @@ public:
 		occupancy_grid.data = grid_data;
 
 		// Some setup
-		putObstaclesOnGrid(3);
-		std::cout << "pre-init n[0][0][0]=" << neighbours_offset[0][0][0] <<std::endl;
 		initNeighbours();
-		std::cout << "post-init n[0][0][0]=" << neighbours_offset[0][0][0] <<std::endl;
-		std::cout << " neighbours_offset " << neighbours_offset;
-		std::cout << std::endl;
-
+		putObstaclesOnGrid(3);
 
 		// Get path(s)
-		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
+		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 6, START_X, START_Y);
 		// nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
 		// reversePath(a_star_path);
 		// a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
@@ -118,6 +113,7 @@ public:
 		occupancy_grid.header.frame_id = "base_footprint";
 		grid_pub.publish(occupancy_grid);
 		path_pub.publish(a_star_path);
+		std::cout << "PUBLISH" << std::endl;
 
 		seq++;
 	}
@@ -133,6 +129,7 @@ public:
 				putCircleOnGrid(obsIn[0],obsIn[1],OBS_RADIUS);
 			}
 		}
+		obsFile.close();
 	}
 
 	void putCircleOnGrid(int x, int y, float radius)
@@ -163,9 +160,6 @@ public:
 		float orig_x = GRID_RESOLUTION/2.0;
 		float orig_y = GRID_RESOLUTION/2.0;
 
-		std::cout << " neighbours_offset " << neighbours_offset;
-		std::cout << std::endl;
-
 		for(int dir=0; dir<8; dir++){
 			float direction_theta = PI/4 * dir;
 			// Right turn neighbours
@@ -176,28 +170,10 @@ public:
 				float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta));
 				float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta));
 
-				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
+				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][2] = (int) dir + (theta / (PI / 4));
 				neighbours_offset_dist[dir][i] = arcDistance(offset_x, offset_y);
-				if (dir==0) {
-					std::cout << " TURN_RADIUS=" << DRONE_TURN_RADIUS;
-					std::cout << " TURN_STEP_RAD=" << DRONE_TURN_STEP_RAD;
-					std::cout << " NUM_NEIGHBOURS_RIGHT=" << NUM_NEIGHBOURS_RIGHT;
-					std::cout << " theta=" << theta;
-					std::cout << " base_offset_x=" << base_offset_x;
-					std::cout << " base_offset_y=" << base_offset_y;
-					std::cout << " offset_x=" << offset_x;
-					std::cout << " offset_y=" << offset_y;
-					std::cout << std::endl;
-					std::cout << " dir=" << dir << " i=" << i << std::endl;
-					std::cout << " no[0][0][0]=" << neighbours_offset[dir][i][0] << " or " << (int)((offset_x + orig_x)/GRID_RESOLUTION);
-					std::cout << " no[0][0][1]=" << neighbours_offset[dir][i][1];
-					std::cout << " no[0][0][2]=" << neighbours_offset[dir][i][2];
-					std::cout << " nd[0][0]=" << neighbours_offset_dist[dir][i];
-					std::cout << std::endl;
-				}
-
 			}
 			// Left turn neighbours
 			for (int i=NUM_NEIGHBOURS_RIGHT; i<NUM_NEIGHBOURS; i++) {
@@ -206,6 +182,7 @@ public:
 				float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
 				float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta));
 				float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta));
+
 				neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][2] = (8 + dir - (int) (theta / (PI/4)))%8;
@@ -253,7 +230,6 @@ public:
 			path.poses.insert(path.poses.begin(),ps);
 			seq++;
 		}
-		std::cout << path.poses[0] << std::endl;
 		return path;
 	}
 
@@ -281,7 +257,6 @@ public:
 		int end_x, end_y;
 		mapXyToGridXy(start_x, start_y, map_start_x, map_start_y);
 		mapXyToGridXy(end_x, end_y, map_end_x, map_end_y);
-		std::cout << "End: " << end_x << ", " << end_y << std::endl;
 
 		// A* search setup
 		std::set<MapCell> pq;
@@ -301,13 +276,10 @@ public:
 			MapCell current = *pq.begin();
 			pq.erase(pq.begin());
 
-			std::cout << "exploring (" << current.x << "," << current.y << ",dir" << current.heading << ")" << std::endl;
-
 			// Check for goal
 			if (current.x == end_x && current.y == end_y) {
 				return formPath(start_x, start_y, start_direction, current.x, current.y, current.heading, parents);
 			}
-						std::cout << "not goal" << std::endl;
 
 			// Add neighbours to queue
 			// check right (break if blocked)
@@ -334,19 +306,14 @@ public:
 		int new_heading = neighbours_offset[current.heading][neighbour_i][2];
 		float new_path_cost = current.distance + neighbours_offset_dist[current.heading][neighbour_i];
 		float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
-		std::cout << "neighbour " << neighbour_i << std::endl;
-		std::cout << "current " << current.x << "," << current.y << ","<< current.heading << std::endl;
-		std::cout << "pre-enqueue " << new_x << "," << new_y << std::endl;
 
 		if (validGridXy(new_x, new_y) && !isWall(new_x, new_y) && distances[new_x][new_y][new_heading]>new_path_cost) {
-		std::cout << "post-check" << std::endl;
 			pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
 			distances[new_x][new_y][new_heading] = new_path_cost;
 			parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
 
 			pq.insert(MapCell(new_x, new_y, new_path_cost, new_heading));
 		}
-		std::cout << "post-enqueue" << std::endl;
 
 		return !isWall(new_x, new_y);
 	}
