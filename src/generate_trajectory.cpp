@@ -671,7 +671,7 @@ int main(int argc, char **argv)
 	// nav_msgs::Path path = set_up_test_case();
 	// tp.generateTrajectory(path);
 	// start end
-	tp.rotate(1, 1, 1, PI/4, -0.174533); // 135 to -90
+	tp.rotate(1, 1, 1, PI/4, -0.174533);
 	tp.rotate(1, 1, 1, -0.174533, PI/4);
 	tp.rotate(1, 1, 1, 0.349066, -0.349066);
 	tp.rotate(1, 1, 1, 0.174533, 0.698132);
