@@ -140,7 +140,7 @@ public:
 	#define DRONE_TURN_STEPS (int)(DRONE_TURN_ARC / GRID_RESOLUTION)
 	#define DRONE_TURN_STEP_RAD (GRID_RESOLUTION / DRONE_TURN_RADIUS)
 	#define NUM_NEIGHBOURS (2 * DRONE_TURN_STEPS + 1)
-	const int neighbours_offset[][NUM_NEIGHBOURS][3];
+	const int neighbours_offset[][NUM_NEIGHBOURS][4];
 
 	void initNeighbours() {
 		// TODO: Rotate base case to make 4 other directions
@@ -164,10 +164,11 @@ public:
 			float base_offset_x = DRONE_TURN_RADIUS * (1.0 - cos(theta);
 			float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
       float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta))
-      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta)) 
+      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta))
 			neighbours_offset[dir][i][0] = (int) (((offset_x + orig_x)/GRID_RESOLUTION));
 			neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 			neighbours_offset[dir][i][2] = (int) dir + (theta / (PI / 4));
+			neighbours_offset[dir][i][3] = arcDistance(offset_x, offset_y);
 		}
 		// Left turn neighbours
 		for (int i=numSteps+1; i<numNeighbours; i++) {
@@ -175,10 +176,11 @@ public:
 			float base_offset_x = -(DRONE_TURN_RADIUS * (1.0 - cos(theta));
 			float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
       float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta))
-      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta)) 
+      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta))
 			neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
 			neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 			neighbours_offset[dir][i][2] = (8 + dir - (int) (theta / (PI/4)))%8;
+			neighbours_offset[dir][i][3] = arcDistance(offset_x, offset_y);
 		}
   }
 	}
