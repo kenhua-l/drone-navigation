@@ -15,13 +15,21 @@ class TrajectoryPlanner
 		double MAX_VEL;
 		double ANGULAR_VEL;
 
-		TrajectoryPlanner()
+		double robot_x;
+		double robot_y;
+		double robot_z;
+
+		TrajectoryPlanner(double x, double y)
 		{
 			PERIOD = 0.05; // 50ms
 			ACCELERATION = 0.1;
 			DECELERATION = 0.15;
 			MAX_VEL = 0.5;
 			ANGULAR_VEL = PI / 4; // radians per second
+
+			robot_x = x;
+			robot_y = y;
+			robot_z = 0;
 		}
 
 		void putObstaclesOnGrid()
@@ -275,7 +283,7 @@ class TrajectoryPlanner
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
-		void generateTrajectory(nav_msgs::Path path)
+		void generateFlightTrajectory(nav_msgs::Path &path)
 		{
       if(path.poses.size() == 0)
       {
@@ -286,8 +294,8 @@ class TrajectoryPlanner
 			std::vector<double> path_max_vel = calculatePathMaxVelocity(path);
 
 			// Initialize robot coordinates and yaw
-      double robot_x = path.poses[0].pose.position.x;
-      double robot_y = path.poses[0].pose.position.y;
+      // double robot_x = path.poses[0].pose.position.x;
+      // double robot_y = path.poses[0].pose.position.y;
       double robot_yaw = findAngle(path.poses[0].pose, path.poses[1].pose);
 
 			double current_x_vel = 0;
@@ -296,7 +304,7 @@ class TrajectoryPlanner
 			bool stop = false;
 			while(!stop)
 			{
-				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
+				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << robot_z << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
 				// std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " " << std::endl;
 				//Find nearest point to robot
 	      int index = find_index_nearest(path, robot_x, robot_y);
@@ -347,58 +355,56 @@ class TrajectoryPlanner
 			}
 		}
 
-		void takeoff(float coorX, float coorY)
+		void takeoff()
 		{
 		  float deceleration = -0.5;
 		  float acceleration = 0.5;
 
 		  float velocity = 0.0;
 
-		  float targetDist = 1.0 ;
+		  float targetDist = 5.0 ;
 		  float middleDist = targetDist / 2;
-
-		  float currentZ = 0.0 ;
 
 		  float liftof_time = 0.0;
 		  float interval = 0.05;
 
 		  float timecount= 0;
-		  int buffer =400;
+		  int buffer = 5;
 
-			while(currentZ <= 0.3)
+			while(robot_z <= 0.3)
 			{
 				velocity = velocity + (acceleration * interval);
-				currentZ = currentZ + (velocity * interval);
-				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+				robot_z = robot_z + (velocity * interval);
+				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
 				timecount=timecount+interval;
 			}
 
 			while(buffer > 0)
 			{
-				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
 				buffer = buffer - 1;
 			}
 
 			while(velocity >= 0.0)
 			{
-				if(currentZ <= middleDist)
+				if(robot_z <= middleDist)
 				{
 					velocity = velocity + (acceleration * interval);
-					currentZ = currentZ + (velocity * interval);
-					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+					robot_z = robot_z + (velocity * interval);
+					std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
 				}
 				else
 				{
 					velocity = velocity + (deceleration * interval);
-					currentZ = currentZ + (velocity * interval);
-					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+					robot_z = robot_z + (velocity * interval);
+					std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
 				}
 				timecount=timecount+interval;
 			}
-			buffer = 400;
+			buffer = 5;
 			while(buffer > 0)
 			{
-				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
 				buffer = buffer - 1;
 			}
 
@@ -421,7 +427,7 @@ class TrajectoryPlanner
 
 			double turn_angle;
 			double diff1 = temp_end_yaw - temp_start_yaw;
-			std::cout << diff1 << std::endl;
+			// std::cout << diff1 << std::endl;
 			if(diff1 < 0)
 			{
 				// double diff2 = 360 + diff1;
@@ -449,26 +455,28 @@ class TrajectoryPlanner
 				}
 			}
 			double sum_yaw = 0;
-			double angular_vel_per_50ms;
+			double angular_vel_per_50ms, angular_vel_per_sec;
 			if(turn_angle < 0)
 			{
 				angular_vel_per_50ms = -ANGULAR_VEL * PERIOD;
+				angular_vel_per_sec = -ANGULAR_VEL;
 			}
 			else
 			{
 				angular_vel_per_50ms = ANGULAR_VEL * PERIOD;
+				angular_vel_per_sec = ANGULAR_VEL;
 			}
-			std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << robot_z << " 0 0 0 0 0 0 " << robot_yaw << " " << angular_vel_per_50ms << std::endl;
+			std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 			while( sum_yaw < fabs(turn_angle) )
 			{
 				robot_yaw += angular_vel_per_50ms;
-				std::cout << robot_x << " " << robot_y << " " << robot_z << " 0 0 0 0 0 0 " << robot_yaw << " " << angular_vel_per_50ms << std::endl;
+				std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 				sum_yaw += fabs(angular_vel_per_50ms);
 			}
-			std::cout << robot_x << " " << robot_y << " " << robot_z << " 0 0 0 0 0 0 " << robot_yaw << " " << angular_vel_per_50ms << std::endl;
+			std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 		}
 
-		void landing(float coorX, float coorY)
+			void landing()
 		{
 		  float acceleration = 0.3;
 		  float deceleration = -0.3;
@@ -476,11 +484,7 @@ class TrajectoryPlanner
 		  float velocity = 0.0;
 
 		  float land_targetDist = 0.0;
-		  float targetDist = 1.0 ;
-		  float middleDist = targetDist / 2;
-
-		  float landing_currentZ = 0.98;
-		  float currentZ = 0.0;
+		  float middleDist = robot_z / 2;
 
 		  float liftof_time = 0.0;
 		  float interval = 0.05;
@@ -489,27 +493,34 @@ class TrajectoryPlanner
 		  while (velocity <= 0.0)
 		  {
 		    //if(currentZ <= middleDist)
-		    if(landing_currentZ >= middleDist )
+		    if(robot_z >= middleDist )
 		    {
 		      //velocity = velocity + (acceleration * interval);
 		      velocity = velocity + (deceleration * interval);
-		      landing_currentZ = landing_currentZ + (velocity * interval);
-		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+		      robot_z = robot_z + (velocity * interval);
+		      std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
 		    }
 		    else
 		    {
 		      //velocity = velocity + (deceleration * interval);
 		      velocity = velocity + (acceleration * interval);
-		      landing_currentZ = landing_currentZ + (velocity * interval);
-		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+		      robot_z = robot_z + (velocity * interval);
+		      std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
 		    }
 
 		    timecount=timecount+interval;
 		  }
 		  //Print out steady state
-		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		  std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
 		    //Print out to stop the propeller
-		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		  std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		}
+
+		void generateTrajectory(nav_msgs::Path &path)
+		{
+			takeoff();
+			generateFlightTrajectory(path);
+			landing();
 		}
 
 		void writeTrajectoryToFile()
@@ -539,6 +550,11 @@ void add_pose_to_path(nav_msgs::Path &desired_path, float x, float y)
 nav_msgs::Path set_up_test_case()
 {
   nav_msgs::Path desired_path;
+	add_pose_to_path(desired_path, 0.0, 0.0);
+	add_pose_to_path(desired_path, 0.1, 0.1);
+	add_pose_to_path(desired_path, 0.2, 0.2);
+	add_pose_to_path(desired_path, 0.3, 0.3);
+	add_pose_to_path(desired_path, 0.4, 0.4);
   add_pose_to_path(desired_path, 0.5, 0.5);
   add_pose_to_path(desired_path, 0.5, 0.7);
   add_pose_to_path(desired_path, 0.5, 0.9);
@@ -667,12 +683,7 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, "robotController");
 	ros::NodeHandle nh;
 
-	TrajectoryPlanner tp;
-	// nav_msgs::Path path = set_up_test_case();
-	// tp.generateTrajectory(path);
-	// start end
-	tp.rotate(1, 1, 1, PI/4, -0.174533);
-	tp.rotate(1, 1, 1, -0.174533, PI/4);
-	tp.rotate(1, 1, 1, 0.349066, -0.349066);
-	tp.rotate(1, 1, 1, 0.174533, 0.698132);
+	TrajectoryPlanner tp(0, 0);
+	nav_msgs::Path path = set_up_test_case();
+	tp.generateTrajectory(path);
 }
