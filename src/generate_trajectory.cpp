@@ -230,6 +230,7 @@ public:
 			path.poses.insert(path.poses.begin(),ps);
 			seq++;
 		}
+		std::cout << "path formed" << std::endl;
 		return path;
 	}
 
