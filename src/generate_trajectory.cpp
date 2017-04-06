@@ -135,8 +135,9 @@ class TrajectoryPlanner
 				// std::cout << "temp: " << distance(local_look_ahead_point.first, local_look_ahead_point.second, 0, 0) / (2 * radius) << std::endl;
 				// std::cout << "look_ahead_theta: " << look_ahead_theta << std::endl;
 				double arc_distance_to_look_ahead = radius * look_ahead_theta;
-				// std::cout << "arc_distance_to_look_ahead: " << arc_distance_to_look_ahead << std::endl;
 				double acc_per_50_ms = ( pow(look_ahead_max_vel, 2) - pow(current_vel, 2) ) / ( 2 * arc_distance_to_look_ahead ) * PERIOD;
+				// std::cout << "look_ahead_max_vel: " << look_ahead_max_vel << std::endl;
+				// std::cout << "arc_distance_to_look_ahead: " << arc_distance_to_look_ahead << std::endl;
 				new_vel = current_vel + acc_per_50_ms;
 				if(new_vel > 1)
 				{
@@ -242,7 +243,7 @@ class TrajectoryPlanner
 				{
 					max_braking_speed = 1;
 				}
-				// std::cout << "curve_speed: " << max_curving_speed << " max_braking_speed: " << max_braking_speed << std::endl;
+				// std::cout << "index: " << i << " curve_speed: " << max_curving_speed << " max_braking_speed: " << max_braking_speed << std::endl;
 				calculated_vel = fmin(max_curving_speed, max_braking_speed);
 				if(calculated_vel > 1)
 				{
@@ -261,6 +262,7 @@ class TrajectoryPlanner
 			remaining_distance = total_distance - sum_distance;
 			max_braking_speed = sqrt(2 * DECELERATION * remaining_distance);
 			result.push_back(max_braking_speed);
+			// std::cout << "index: " << result.size() - 1 << " remaining_distance: " << remaining_distance << " max_braking_speed: " << max_braking_speed << std::endl;
 
 			return result;
 		}
@@ -285,7 +287,7 @@ class TrajectoryPlanner
 			double current_y_vel = 0;
 			double current_z_vel = 0;
 			bool stop = false;
-			while(!stop)
+			for(int i = 0; i < 950; i++)
 			{
 				std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " ";
 				// std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << "0" << " " << current_x_vel << " " << current_y_vel << " " << current_z_vel << " " << std::endl;
@@ -293,22 +295,16 @@ class TrajectoryPlanner
 	      int index = find_index_nearest(path, robot_x, robot_y);
 
 	      //Find the look ahead point
-	      geometry_msgs::Pose look_ahead_pose;
-	      int look_ahead = 7;
-	      if(index + look_ahead < path.poses.size())
-	      {
-	        look_ahead_pose = path.poses[index + look_ahead].pose;
-	      }
-	      else
-	      {
-	        look_ahead_pose = path.poses[path.poses.size() - 1].pose;
-	      }
-				// std::cout << "index: " << index << " look ahead index: " << look_ahead + index << " look_ahead_x: " << look_ahead_pose.position.x << " look_ahead_y: " << look_ahead_pose.position.y << std::endl;
+
+	      int look_ahead = 3;
+				int look_ahead_index = (index + look_ahead) % path.poses.size();
+				geometry_msgs::Pose look_ahead_pose = path.poses[look_ahead_index].pose;
+
 	      //Convert the look ahead point to the robot's local coordinates
 	      std::pair<double, double> local_look_ahead_point = convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y);
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
 
-				double look_ahead_max_vel = path_max_vel[index + look_ahead];
+				double look_ahead_max_vel = path_max_vel[look_ahead_index];
 				double new_robot_x, new_robot_y, new_robot_yaw, new_vel;
 				// Want to find new_robot_x, new_robot_y, new_robot_yaw, new_vel
 				calcNextPoint(robot_x, robot_y, robot_yaw, current_vel, local_look_ahead_point, look_ahead_max_vel, new_robot_x, new_robot_y, new_robot_yaw, new_vel);
@@ -492,10 +488,9 @@ int main(int argc, char **argv)
 
 	TrajectoryPlanner tp;
 	nav_msgs::Path path = set_up_test_case();
+	// std::cout << "path size: " << path.poses.size() << std::endl;
 	tp.generateTrajectory(path);
 	// std::vector<double> path_max_vel = tp.calculatePathMaxVelocity(path);
-	// for(int i = 0; i < path_max_vel.size(); i++)
-	// {
-	// 	std::cout << path_max_vel[i] << std::endl;
-	// }
+	// std::cout << "path_max_vel size: " << path_max_vel.size() << std::endl;
+	// std::cout << "index: " << path_max_vel.size() - 1 << " max_vel: " << path_max_vel[path_max_vel.size() - 1] << std::endl;
 }
