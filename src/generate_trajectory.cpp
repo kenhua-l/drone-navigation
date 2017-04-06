@@ -156,24 +156,31 @@ public:
 		neighbours_offset[0][0][1] = 1; // Dir0, neighbour0, grid_offset_y
 		neighbours_offset[0][0][1] = 0; // Dir0, neighbour0, new_direction
 
+    for(int dir=0; dir<8; dir++){
+      float direction_theta = PI/4 * dir;
 		// Right turn neighbours
 		for (int i=1; i<numSteps+1; i++) {
 			float theta = i * DRONE_TURN_STEP_RAD;
-			float offset_x = DRONE_TURN_RADIUS * (1.0 - cos(theta);
-			float offset_y = DRONE_TURN_RADIUS * sin(theta);
-			neighbours_offset[0][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
-			neighbours_offset[0][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
-			neighbours_offset[0][i][2] = (int) (theta / (PI / 4));
+			float base_offset_x = DRONE_TURN_RADIUS * (1.0 - cos(theta);
+			float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
+      float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta))
+      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta)) 
+			neighbours_offset[dir][i][0] = (int) (((offset_x + orig_x)/GRID_RESOLUTION));
+			neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
+			neighbours_offset[dir][i][2] = (int) dir + (theta / (PI / 4));
 		}
 		// Left turn neighbours
 		for (int i=numSteps+1; i<numNeighbours; i++) {
 			float theta = i * DRONE_TURN_STEP_RAD;
-			float offset_x = -(DRONE_TURN_RADIUS * (1.0 - cos(theta));
-			float offset_y = DRONE_TURN_RADIUS * sin(theta);
-			neighbours_offset[0][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
-			neighbours_offset[0][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
-			neighbours_offset[0][i][2] = (8 - (int) (theta / (PI/4)))%8;
+			float base_offset_x = -(DRONE_TURN_RADIUS * (1.0 - cos(theta));
+			float base_offset_y = DRONE_TURN_RADIUS * sin(theta);
+      float offset_x = (base_offset_y * sin(direction_theta)) + (base_offset_x * cos(direction_theta))
+      float offset_y = (base_offset_y * cos(direction_theta)) - (base_offset_x * sin(direction_theta)) 
+			neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
+			neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
+			neighbours_offset[dir][i][2] = (8 + dir - (int) (theta / (PI/4)))%8;
 		}
+  }
 	}
 
 	// Should be int because of grid's nature but put float for maintainability.
@@ -200,7 +207,7 @@ public:
 		return DRONE_TURN_RADIUS * theta;
 	}
 
-	void formPath(int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
+	nav_msgs::Path formPath(int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
 		// Path object setup
 		static int path_header_seq = 1;
 		nav_msgs::Path path;
@@ -234,6 +241,11 @@ public:
 		}
 		return path;
 	}
+
+  nav_msgs::Path reversePath(nav_msgs::Path path){
+    return std::reverse(path.poses.begin(), path.poses.end());
+  }
+
 
 	bool isBlocked(MapCell arr[]) {
 		// Check if the generated path is blocked by the obstacles
