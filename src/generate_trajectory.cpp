@@ -118,7 +118,7 @@ public:
 
 		initNeighbours();
 		putObstaclesOnGrid(3);
-		generatePath();
+		// generatePath();
 
 	}
 
@@ -831,7 +831,7 @@ public:
 		return formPath(start_x, start_y, start_direction, start_x, start_y, start_direction, parents);
 	}
 
-	// Returns false if neighbour is a wall
+	// Returns false if invalid or neighbour is a wall
 	bool checkIfWallAndEnqueueNeighbour(MapCell current, int neighbour_i, int end_x, int end_y, std::set<MapCell> &pq, std::vector< std::vector< std::vector<float> > > &distances, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > &parents) {
 		int new_x = current.x + neighbours_offset[current.heading][neighbour_i][0];
 		int new_y = current.y + neighbours_offset[current.heading][neighbour_i][1];
@@ -847,7 +847,7 @@ public:
 			pq.insert(MapCell(new_x, new_y, new_path_cost, new_heading));
 		}
 
-		return !isWall(new_x, new_y);
+		return !validGridXy(new_x, new_y) || !isWall(new_x, new_y);
 	}
 
 	// Aux functions
