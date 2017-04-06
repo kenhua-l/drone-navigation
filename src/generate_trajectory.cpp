@@ -11,21 +11,21 @@
 
 // Map definitions
 #define MAP_SIZE        5
-#define MAP_START_X			0
-#define MAP_START_Y			0
-#define GRID_STEPS      10
+#define MAP_START_X			-2.5
+#define MAP_START_Y			-2.5
+#define GRID_STEPS      12
 #define GRID_RESOLUTION (1.0/GRID_STEPS)
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
 #define OBS_FILE 				"/home/yzxj/Part2/obs.txt"
-#define OBS_RADIUS			0.60
-#define START_X					1.5
+#define OBS_RADIUS			0.61
+#define START_X					-1.5
 #define START_Y					1.5
-#define GOAL_X					3.5
-#define GOAL_Y					3.5
-#define CHECKPT_X				2.5
-#define CHECKPT_Y				3.5
+#define GOAL_X					-1.5
+#define GOAL_Y					-1.5
+#define CHECKPT_X				2
+#define CHECKPT_Y				0
 // Directional A-star definitions
 #define MAX_DIST 							999999
 #define PI 										3.14159
@@ -97,10 +97,11 @@ public:
 		putObstaclesOnGrid(3);
 
 		// Get path(s)
-		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 6, START_X, START_Y);
-		// nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
-		// reversePath(a_star_path);
-		// a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
+		// TODO: Not hardcoded directions?
+		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
+		nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
+		reversePathAndRenumber(a_star_path2, a_star_path.poses.size()+1);
+		a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
 	}
 
 	// Just continously publish data for display in rviz
@@ -113,7 +114,6 @@ public:
 		occupancy_grid.header.frame_id = "base_footprint";
 		grid_pub.publish(occupancy_grid);
 		path_pub.publish(a_star_path);
-		std::cout << "PUBLISH" << std::endl;
 
 		seq++;
 	}
@@ -126,10 +126,16 @@ public:
 		float obsIn[2];
 		for (int i=0; i<n; i++) {
 			if (obsFile >> obsIn[0] >> obsIn[1]) {
-				putCircleOnGrid(obsIn[0],obsIn[1],OBS_RADIUS);
+				putCircleOnGrid(obsIn[0],obsIn[1]);
 			}
 		}
 		obsFile.close();
+	}
+
+	void putCircleOnGrid(float x, float y) {
+		int grid_x, grid_y;
+		mapXyToGridXy(grid_x, grid_y, x, y);
+		putCircleOnGrid(grid_x, grid_y, OBS_RADIUS);
 	}
 
 	void putCircleOnGrid(int x, int y, float radius)
@@ -173,7 +179,7 @@ public:
 				neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][2] = (int) dir + (theta / (PI / 4));
-				neighbours_offset_dist[dir][i] = arcDistance(offset_x, offset_y);
+				neighbours_offset_dist[dir][i] = estimateDistance(0,0,offset_x, offset_y);
 			}
 			// Left turn neighbours
 			for (int i=NUM_NEIGHBOURS_RIGHT; i<NUM_NEIGHBOURS; i++) {
@@ -186,7 +192,7 @@ public:
 				neighbours_offset[dir][i][0] = (int) ((offset_x + orig_x)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][1] = (int) ((offset_y + orig_y)/GRID_RESOLUTION);
 				neighbours_offset[dir][i][2] = (8 + dir - (int) (theta / (PI/4)))%8;
-				neighbours_offset_dist[dir][i] = arcDistance(offset_x, offset_y);
+				neighbours_offset_dist[dir][i] = estimateDistance(0,0,offset_x, offset_y);
 			}
 		}
 	}
@@ -211,6 +217,17 @@ public:
 		int temp_dir = edir;
 		int seq = 1;
 		// generate the path using the parents table
+		geometry_msgs::PoseStamped ps0;
+		ps0.header.seq = seq;
+		ps0.header.stamp = ros::Time::now();
+		ps0.header.frame_id = "base_footprint";
+
+		float temp_map_x0, temp_map_y0;
+		gridXyToMapXy(temp_map_x0, temp_map_y0, temp_x, temp_y);
+		ps0.pose.position.x = temp_map_x0;
+		ps0.pose.position.y = temp_map_y0;
+		path.poses.push_back(ps0);
+		seq++;
 		while( !(temp_x == sx && temp_y == sy && temp_dir == sdir) )
 		{
 			std::tuple<int, int, int> temp = parents[temp_x][temp_y][temp_dir];
@@ -227,15 +244,22 @@ public:
 			gridXyToMapXy(temp_map_x, temp_map_y, temp_x, temp_y);
 			ps.pose.position.x = temp_map_x;
 			ps.pose.position.y = temp_map_y;
-			path.poses.insert(path.poses.begin(),ps);
+			path.poses.push_back(ps);
 			seq++;
 		}
-		std::cout << "path formed" << std::endl;
 		return path;
 	}
 
-	void reversePath(nav_msgs::Path path){
-		std::reverse(path.poses.begin(), path.poses.end());
+	void reversePathAndRenumber(nav_msgs::Path &path, int start_renumber){
+		int size = path.poses.size();
+		for (int i=0; i<size/2; i++) {
+			float temp = path.poses[i].pose.position.x;
+			path.poses[i].pose.position.x = path.poses[size-i-1].pose.position.x;
+			path.poses[size-i-1].pose.position.x = temp;
+			temp = path.poses[i].pose.position.y;
+			path.poses[i].pose.position.y = path.poses[size-i-1].pose.position.y;
+			path.poses[size-i-1].pose.position.y = temp;
+		}
 	}
 
 
@@ -268,7 +292,6 @@ public:
 
 		// Start at the given direction.
 		// Use this to control headings at checkpoint
-		// TODO: Implement reversePath()
 		distances[start_x][start_y][start_direction] = 0;
 		pq.insert(MapCell(start_x, start_y, 0, start_direction));
 
