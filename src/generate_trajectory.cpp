@@ -13,7 +13,7 @@ class TrajectoryPlanner
 		double ACCELERATION;
 		double DECELERATION;
 		double MAX_VEL;
-
+		double ANGULAR_VEL;
 
 		TrajectoryPlanner()
 		{
@@ -21,6 +21,7 @@ class TrajectoryPlanner
 			ACCELERATION = 0.1;
 			DECELERATION = 0.15;
 			MAX_VEL = 0.5;
+			ANGULAR_VEL = PI / 4; // radians per second
 		}
 
 		void putObstaclesOnGrid()
@@ -87,7 +88,7 @@ class TrajectoryPlanner
 			return atan2( pose2.position.y - pose1.position.y, pose2.position.x - pose1.position.x );
 		}
 
-		void rotate(double angle, double &x, double &y)
+		void applyRotationMatrix(double angle, double &x, double &y)
 		{
 			// std::cout << "x: " << x << " y: " << y << " angle: " << angle << std::endl;
 			double temp_x = x, temp_y = y;
@@ -158,7 +159,7 @@ class TrajectoryPlanner
 				double delta_y = radius - radius * cos(traveled_theta);
 				// std::cout << "look_ahead_local_y: " << local_look_ahead_point.second << std::endl;
 				// std::cout << "(before rotation) delta_x: " << delta_x << " delta_y: " << delta_y << std::endl;
-				rotate(robot_yaw, delta_x, delta_y);
+				applyRotationMatrix(robot_yaw, delta_x, delta_y);
 				new_robot_x = robot_x + delta_x;
 				new_robot_y = robot_y + delta_y;
 				// std::cout << "(after rotation) delta_x: " << delta_x << " delta_y: " << delta_y << std::endl;
@@ -346,6 +347,171 @@ class TrajectoryPlanner
 			}
 		}
 
+		void takeoff(float coorX, float coorY)
+		{
+		  float deceleration = -0.5;
+		  float acceleration = 0.5;
+
+		  float velocity = 0.0;
+
+		  float targetDist = 1.0 ;
+		  float middleDist = targetDist / 2;
+
+		  float currentZ = 0.0 ;
+
+		  float liftof_time = 0.0;
+		  float interval = 0.05;
+
+		  float timecount= 0;
+		  int buffer =400;
+
+			while(currentZ <= 0.3)
+			{
+				velocity = velocity + (acceleration * interval);
+				currentZ = currentZ + (velocity * interval);
+				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+				timecount=timecount+interval;
+			}
+
+			while(buffer > 0)
+			{
+				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				buffer = buffer - 1;
+			}
+
+			while(velocity >= 0.0)
+			{
+				if(currentZ <= middleDist)
+				{
+					velocity = velocity + (acceleration * interval);
+					currentZ = currentZ + (velocity * interval);
+					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+				}
+				else
+				{
+					velocity = velocity + (deceleration * interval);
+					currentZ = currentZ + (velocity * interval);
+					std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+				}
+				timecount=timecount+interval;
+			}
+			buffer = 400;
+			while(buffer > 0)
+			{
+				std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				buffer = buffer - 1;
+			}
+
+		}
+
+		// void rotate(double robot_x, double robot_y, double start_yaw, double end_yaw)
+		void rotate(double robot_x, double robot_y, double robot_z, double robot_yaw, double end_yaw)
+		{
+			double temp_start_yaw = robot_yaw, temp_end_yaw = end_yaw;
+			if(temp_start_yaw < 0)
+			{
+				// temp_start_yaw = 360 + robot_yaw;
+				temp_start_yaw = 2 * PI + robot_yaw;
+			}
+			if(temp_end_yaw < 0)
+			{
+				temp_end_yaw = 2 * PI + end_yaw;
+				// temp_end_yaw = 360 + end_yaw;
+			}
+
+			double turn_angle;
+			double diff1 = temp_end_yaw - temp_start_yaw;
+			std::cout << diff1 << std::endl;
+			if(diff1 < 0)
+			{
+				// double diff2 = 360 + diff1;
+				double diff2 = 2 * PI + diff1;
+				if( fabs(diff1) < fabs(diff2) )
+				{
+					turn_angle = diff1;
+				}
+				else
+				{
+					turn_angle = diff2;
+				}
+			}
+			else
+			{
+				// double diff2 = 360 - diff1;
+				double diff2 = 2 * PI - diff1;
+				if( fabs(diff1) < fabs(diff2) )
+				{
+					turn_angle = diff1;
+				}
+				else
+				{
+					turn_angle = -diff2;
+				}
+			}
+			double sum_yaw = 0;
+			double angular_vel_per_50ms;
+			if(turn_angle < 0)
+			{
+				angular_vel_per_50ms = -ANGULAR_VEL * PERIOD;
+			}
+			else
+			{
+				angular_vel_per_50ms = ANGULAR_VEL * PERIOD;
+			}
+			std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << robot_z << " 0 0 0 0 0 0 " << robot_yaw << " " << angular_vel_per_50ms << std::endl;
+			while( sum_yaw < fabs(turn_angle) )
+			{
+				robot_yaw += angular_vel_per_50ms;
+				std::cout << robot_x << " " << robot_y << " " << robot_z << " 0 0 0 0 0 0 " << robot_yaw << " " << angular_vel_per_50ms << std::endl;
+				sum_yaw += fabs(angular_vel_per_50ms);
+			}
+			std::cout << robot_x << " " << robot_y << " " << robot_z << " 0 0 0 0 0 0 " << robot_yaw << " " << angular_vel_per_50ms << std::endl;
+		}
+
+		void landing(float coorX, float coorY)
+		{
+		  float acceleration = 0.3;
+		  float deceleration = -0.3;
+
+		  float velocity = 0.0;
+
+		  float land_targetDist = 0.0;
+		  float targetDist = 1.0 ;
+		  float middleDist = targetDist / 2;
+
+		  float landing_currentZ = 0.98;
+		  float currentZ = 0.0;
+
+		  float liftof_time = 0.0;
+		  float interval = 0.05;
+
+		  float timecount= 0;
+		  while (velocity <= 0.0)
+		  {
+		    //if(currentZ <= middleDist)
+		    if(landing_currentZ >= middleDist )
+		    {
+		      //velocity = velocity + (acceleration * interval);
+		      velocity = velocity + (deceleration * interval);
+		      landing_currentZ = landing_currentZ + (velocity * interval);
+		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+		    }
+		    else
+		    {
+		      //velocity = velocity + (deceleration * interval);
+		      velocity = velocity + (acceleration * interval);
+		      landing_currentZ = landing_currentZ + (velocity * interval);
+		          std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<landing_currentZ << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+		    }
+
+		    timecount=timecount+interval;
+		  }
+		  //Print out steady state
+		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		    //Print out to stop the propeller
+		  std::cout <<std::fixed << std::setprecision(3) <<coorX << " " << coorY<< " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		}
+
 		void writeTrajectoryToFile()
 		{
 			// Format: x y z vx vy vz ax ay az head headv
@@ -502,6 +668,11 @@ int main(int argc, char **argv)
 	ros::NodeHandle nh;
 
 	TrajectoryPlanner tp;
-	nav_msgs::Path path = set_up_test_case();
-	tp.generateTrajectory(path);
+	// nav_msgs::Path path = set_up_test_case();
+	// tp.generateTrajectory(path);
+	// start end
+	tp.rotate(1, 1, 1, PI/4, -0.174533); // 135 to -90
+	tp.rotate(1, 1, 1, -0.174533, PI/4);
+	tp.rotate(1, 1, 1, 0.349066, -0.349066);
+	tp.rotate(1, 1, 1, 0.174533, 0.698132);
 }
