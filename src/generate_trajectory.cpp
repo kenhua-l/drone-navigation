@@ -296,10 +296,14 @@ class TrajectoryPlanner
 
 	      //Find the look ahead point
 
-	      int look_ahead = 3;
-				int look_ahead_index = (index + look_ahead) % path.poses.size();
+	      int look_ahead = 7;
+				int look_ahead_index = index + look_ahead;
+				if(look_ahead_index >= path.poses.size())
+				{
+					look_ahead_index = path.poses.size() - 1;
+				}
 				geometry_msgs::Pose look_ahead_pose = path.poses[look_ahead_index].pose;
-
+				// std::cout << "index: " << index << " look_ahead_index: " << look_ahead_index << " robot_x: " << robot_x << " robot_y: " << robot_y << " look_ahead_x: " << look_ahead_pose.position.x << " look_ahead_y: " << look_ahead_pose.position.y << std::endl;
 	      //Convert the look ahead point to the robot's local coordinates
 	      std::pair<double, double> local_look_ahead_point = convertToLocalCoords(robot_x, robot_y, robot_yaw, look_ahead_pose.position.x, look_ahead_pose.position.y);
 				double current_vel = sqrt( pow(current_x_vel, 2) + pow(current_y_vel, 2) );
@@ -488,9 +492,5 @@ int main(int argc, char **argv)
 
 	TrajectoryPlanner tp;
 	nav_msgs::Path path = set_up_test_case();
-	// std::cout << "path size: " << path.poses.size() << std::endl;
 	tp.generateTrajectory(path);
-	// std::vector<double> path_max_vel = tp.calculatePathMaxVelocity(path);
-	// std::cout << "path_max_vel size: " << path_max_vel.size() << std::endl;
-	// std::cout << "index: " << path_max_vel.size() - 1 << " max_vel: " << path_max_vel[path_max_vel.size() - 1] << std::endl;
 }
