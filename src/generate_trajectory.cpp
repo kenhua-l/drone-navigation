@@ -139,6 +139,7 @@ public:
 	#define DRONE_TURN_ARC (PI / 2.0 * DRONE_TURN_RADIUS)
 	#define DRONE_TURN_STEPS (int)(DRONE_TURN_ARC / GRID_RESOLUTION)
 	#define DRONE_TURN_STEP_RAD (GRID_RESOLUTION / DRONE_TURN_RADIUS)
+	#define NUM_NEIGHBOURS_LEFT DRONE_TURN_STEPS
 	#define NUM_NEIGHBOURS (2 * DRONE_TURN_STEPS + 1)
 	const int neighbours_offset[][NUM_NEIGHBOURS][4];
 
@@ -186,14 +187,14 @@ public:
 	}
 
 	// Should be int because of grid's nature but put float for maintainability.
-	std::tuple<float,float> rotateOffset(float xOffset, float yOffset, int direction){
-		switch(direction){
+	std::tuple<float,float,int> rotateOffset(float xOffset, float yOffset, int start_direction, int end_direction){
+		switch(start_direction){
 			case 2:
 			case 3:
-			return std::make_tuple(xOffset, -yOffset);
+			return std::make_tuple(xOffset, -yOffset, start_direction+2);
 			case 4:
 			case 5:
-			return std::make_tuple(-xOffset, -yOffset);
+			return std::make_tuple(-xOffset, -yOffset, start_direction+4);
 			case 6:
 			case 7:
 			return std::make_tuple(-xOffset, yOffset);
@@ -290,36 +291,47 @@ public:
 
 			// Check for goal
 			if (current.x == end_x && current.y == end_y) {
-				formPath(start_x, start_y, start_direction, current.x, current.y, current.direction, parents);
+				return formPath(start_x, start_y, start_direction, current.x, current.y, current.direction, parents);
 			}
 
-			// Add neighbours to queue if value
-			// TODO:
+			// Add neighbours to queue
 			// check front
-			// check Right (break if blocked)
-			// check left (break if blocked)
-			for (int i=0; i<NUM_NEIGHBOURS; i++) {
-				// TODO: extract
-				int new_x = current.x + neighbours_offset[current.heading][i][0];
-				int new_y = current.y + neighbours_offset[current.heading][i][1];
-				int new_heading = neighbours_offset[current.heading][i][2];
-				float new_path_cost = current.distance + neighbours_offset[current.heading][i][3];
-				float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
-
-				// TODO: integrate isBlocked/isWall
-				if (!isBlocked() && distances[new_x][new_y][new_heading]>new_path_cost) {
-					pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
-					distances[new_x][new_y][new_heading] = new_path_cost;
-					parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
-
-					MapCell neighbour = MapCell(new_x, new_y, new_path_cost, new_heading);
-					pq.insert(neighbour);
-				}
-
+			if (checkIfWallAndEnqueueNeighbour(current, 0, pq, distances, parents)) {
+				continue;
 			}
-
+			// check right (break if blocked)
+			for (int i=1; i<NUM_NEIGHBOURS_LEFT+1; i++) {
+				if (!checkIfWallAndEnqueueNeighbour(current, i, pq, distances, parents)) {
+					break;
+				}
+			}
+			// check left (break if blocked)
+			for (int i=NUM_NEIGHBOURS_LEFT+1; i<NUM_NEIGHBOURS; i++) {
+				if (!checkIfWallAndEnqueueNeighbour(current, i, pq, distances, parents)) {
+					break;
+				}
+			}
 		}
-		return path;
+		return formPath(start_x, start_y, start_direction, start_x, start_y, start_direction, parents;
+	}
+
+	// Returns false if neighbour is a wall
+	bool checkIfWallAndEnqueueNeighbour(MapCell current, int neighbour_i, std::set<MapCell> pq, std::vector< std::vector< std::vector<float> > > distances, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
+		int new_x = current.x + neighbours_offset[current.heading][neighbour_i][0];
+		int new_y = current.y + neighbours_offset[current.heading][neighbour_i][1];
+		int new_heading = neighbours_offset[current.heading][neighbour_i][2];
+		float new_path_cost = current.distance + neighbours_offset[current.heading][neighbour_i][3];
+		float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
+
+		if (!isWall(new_x, new_y) && distances[new_x][new_y][new_heading]>new_path_cost) {
+			pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
+			distances[new_x][new_y][new_heading] = new_path_cost;
+			parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
+
+			pq.insert(MapCell(new_x, new_y, new_path_cost, new_heading));
+		}
+
+		return !isWall(new_x, new_y);
 	}
 
 	// Aux functions
