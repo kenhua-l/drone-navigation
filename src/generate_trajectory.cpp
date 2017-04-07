@@ -19,8 +19,8 @@
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
-#define OBS_FILE 				"/home/yzxj/Part2/obs.txt"
-#define OBS_RADIUS			0.61
+#define OBS_FILE 				"/home/mervyn/Desktop/EE4308-2/obstacles.txt"
+#define OBS_RADIUS			0.65
 #define START_X					-1.5
 #define START_Y					1.5
 #define GOAL_X					-1.5
@@ -389,7 +389,7 @@ public:
 
 	      //Find the look ahead point
 
-	      int look_ahead = 3;
+	      int look_ahead = 1;
 				int look_ahead_index = index + look_ahead;
 				if(look_ahead_index >= path.poses.size())
 				{
@@ -440,7 +440,7 @@ public:
 
 		  float velocity = 0.0;
 
-		  float targetDist = 5.0 ;
+		  float targetDist = 1.0;
 		  float middleDist = targetDist / 2;
 
 		  float liftof_time = 0.0;
@@ -596,6 +596,13 @@ public:
 
 		void generateTrajectory(nav_msgs::Path &path)
 		{
+			std::ofstream myfile;
+		  myfile.open("ideal_path.txt");
+		  for(int i = 0; i < path.poses.size(); i++)
+			{
+				myfile << path.poses[i].pose.position.x << "," << path.poses[i].pose.position.y << std::endl;
+			}
+		  myfile.close();
 			takeoff();
 			generateFlightTrajectory(path);
 			landing();
@@ -662,6 +669,7 @@ public:
 		// Get path(s)
 		// TODO: Not hardcoded directions?
 		// TODO: options
+
 		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
 		nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
 		reversePathAndRenumber(a_star_path2, a_star_path.poses.size()+1);
@@ -1038,18 +1046,18 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "TrajectoryPlanner");
 	ros::NodeHandle nh;
-	TrajectoryPlanner tp(nh, 0, 0);
+	TrajectoryPlanner tp(nh, START_X, START_Y);
 
-	nav_msgs::Path path = set_up_test_case();
-	// nav_msgs::Path path = tp.generatePath();
+	// nav_msgs::Path path = set_up_test_case();
+	nav_msgs::Path path = tp.generatePath();
 	tp.generateTrajectory(path);
 
-	// ros::Rate loop_rate(10);
-	// while(ros::ok())
-	// {
-	// 	tp.loopActivity();
-	// 	ros::spinOnce();
-	// 	loop_rate.sleep();
-	// }
+	ros::Rate loop_rate(10);
+	while(ros::ok())
+	{
+		tp.loopActivity();
+		ros::spinOnce();
+		loop_rate.sleep();
+	}
 	return 0;
 }
