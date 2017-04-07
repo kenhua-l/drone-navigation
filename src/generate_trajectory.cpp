@@ -19,8 +19,8 @@
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
-#define OBS_FILE 				"/home/yzxj/Part2/obs.txt"
-#define OBS_RADIUS			0.61
+#define OBS_FILE 				"/home/mervyn/Desktop/EE4308-2/obstacles.txt"
+#define OBS_RADIUS			0.71
 #define START_X					-1.5
 #define START_Y					1.5
 #define GOAL_X					-1.5
@@ -612,7 +612,7 @@ public:
 		occupancy_grid.header.stamp = ros::Time::now();
 		occupancy_grid.header.frame_id = "base_footprint";
 		grid_pub.publish(occupancy_grid);
-		path_pub.publish(a_star_path);
+		// path_pub.publish(a_star_path);
 
 		seq++;
 	}
@@ -662,11 +662,15 @@ public:
 		// Get path(s)
 		// TODO: Not hardcoded directions?
 		// TODO: options
-		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
-		nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
-		reversePathAndRenumber(a_star_path2, a_star_path.poses.size()+1);
-		a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
-		return a_star_path;
+		nav_msgs::Path a_star_path1;
+		a_star_search(a_star_path1, CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
+		std::cout << "finish first a* search" << std::endl;
+		nav_msgs::Path a_star_path2;
+		a_star_search(a_star_path2, CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
+		std::cout << "finish second a* search" << std::endl;
+		reversePathAndRenumber(a_star_path2, a_star_path1.poses.size()+1);
+		a_star_path1.poses.insert(a_star_path1.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
+		return a_star_path1;
 	}
 
 	void initNeighbours() {
@@ -712,13 +716,7 @@ public:
 		return DRONE_TURN_RADIUS * theta;
 	}
 
-	nav_msgs::Path formPath(int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
-		// Path object setup
-		static int path_header_seq = 1;
-		nav_msgs::Path path;
-		path.header.seq = path_header_seq++;
-		path.header.stamp = ros::Time::now();
-		path.header.frame_id = "base_footprint";
+	void formPath(nav_msgs::Path &path, int sx, int sy, int sdir, int ex, int ey, int edir, std::vector< std::vector< std::vector<std::tuple<int, int, int> > > > parents) {
 
 		int temp_x = ex;
 		int temp_y = ey;
@@ -736,6 +734,7 @@ public:
 		ps0.pose.position.y = temp_map_y0;
 		path.poses.push_back(ps0);
 		seq++;
+		std::cout << "aaaaa" << std::endl;
 		while( !(temp_x == sx && temp_y == sy && temp_dir == sdir) )
 		{
 			std::tuple<int, int, int> temp = parents[temp_x][temp_y][temp_dir];
@@ -755,11 +754,12 @@ public:
 			path.poses.push_back(ps);
 			seq++;
 		}
-		return path;
+		std::cout << "bbbbbb" << std::endl;
 	}
 
 	void reversePathAndRenumber(nav_msgs::Path &path, int start_renumber){
 		int size = path.poses.size();
+		std::cout << "before reverse" << std::endl;
 		for (int i=0; i<size/2; i++) {
 			float temp = path.poses[i].pose.position.x;
 			path.poses[i].pose.position.x = path.poses[size-i-1].pose.position.x;
@@ -768,6 +768,7 @@ public:
 			path.poses[i].pose.position.y = path.poses[size-i-1].pose.position.y;
 			path.poses[size-i-1].pose.position.y = temp;
 		}
+		std::cout << "after reverse" << std::endl;
 	}
 
 
@@ -784,7 +785,7 @@ public:
 	}
 
 	// Probably should clean this up. It's annoyingly long.
-	nav_msgs::Path a_star_search(float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y) {
+	void a_star_search(nav_msgs::Path &path, float map_start_x, float map_start_y, int start_direction, float map_end_x, float map_end_y) {
 		// For ease of use, inputs are floats
 		int start_x, start_y;
 		int end_x, end_y;
@@ -803,16 +804,18 @@ public:
 		distances[start_x][start_y][start_direction] = 0;
 		pq.insert(MapCell(start_x, start_y, 0, start_direction));
 
+		int count = 0;
 		while(!pq.empty()) {
 			// Dequeue
 			MapCell current = *pq.begin();
+			// std::cout<< "after current" << std::endl;
 			pq.erase(pq.begin());
-
 			// Check for goal
 			if (current.x == end_x && current.y == end_y) {
-				return formPath(start_x, start_y, start_direction, current.x, current.y, current.heading, parents);
+				std::cout << "forming path" << std::endl;
+				formPath(path, start_x, start_y, start_direction, current.x, current.y, current.heading, parents);
+				std::cout << "cccccccc" << std::endl;
 			}
-
 			// Add neighbours to queue
 			// check right (break if blocked)
 			for (int i=0; i<NUM_NEIGHBOURS_RIGHT; i++) {
@@ -820,15 +823,14 @@ public:
 					break;
 				}
 			}
-
 			// check left (break if blocked)
 			for (int i=NUM_NEIGHBOURS_RIGHT; i<NUM_NEIGHBOURS; i++) {
 				if (!checkIfWallAndEnqueueNeighbour(current, i, end_x, end_y, pq, distances, parents)) {
 					break;
 				}
 			}
+			count++;
 		}
-		return formPath(start_x, start_y, start_direction, start_x, start_y, start_direction, parents);
 	}
 
 	// Returns false if invalid or neighbour is a wall
@@ -1038,10 +1040,10 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "TrajectoryPlanner");
 	ros::NodeHandle nh;
-	TrajectoryPlanner tp(nh, 0, 0);
+	TrajectoryPlanner tp(nh, MAP_START_X, MAP_START_Y);
 
-	nav_msgs::Path path = set_up_test_case();
-	// nav_msgs::Path path = tp.generatePath();
+	// nav_msgs::Path path = set_up_test_case();
+	nav_msgs::Path path = tp.generatePath();
 	tp.generateTrajectory(path);
 
 	// ros::Rate loop_rate(10);
