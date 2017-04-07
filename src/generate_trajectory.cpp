@@ -19,8 +19,9 @@
 #define GRID_LENGTH     (MAP_SIZE * GRID_STEPS + 1)
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
-#define OBS_FILE 				"/home/yzxj/Part2/obs.txt"
-#define OBS_RADIUS			0.61
+#define OBS_FILE 				"/home/mervyn/Desktop/EE4308-2/obstacles.txt"
+#define OBS_RADIUS			0.7
+#define OBS_INFLATED_RADIUS 1.0
 #define START_X					-1.5
 #define START_Y					1.5
 #define GOAL_X					-1.5
@@ -119,7 +120,6 @@ public:
 		initNeighbours();
 		putObstaclesOnGrid(3);
 		// generatePath();
-
 	}
 
 		double distance(double x1, double y1, double x2, double y2)
@@ -145,7 +145,7 @@ public:
 
         next_pose = path.poses[i+1].pose;
         next_distance = distance(robot_x, robot_y, next_pose.position.x, next_pose.position.y);
-        //std::cout << "index: " << i << " temp_distance: " << temp_distance << " previous_distance: " << previous_distance << std::endl;
+        // std::cout << "index: " << i << " temp_distance: " << temp_distance << " previous_distance: " << previous_distance << std::endl;
         if(temp_distance < next_distance)
         {
           previous_index = i;
@@ -389,7 +389,7 @@ public:
 
 	      //Find the look ahead point
 
-	      int look_ahead = 3;
+	      int look_ahead = 1;
 				int look_ahead_index = index + look_ahead;
 				if(look_ahead_index >= path.poses.size())
 				{
@@ -440,7 +440,7 @@ public:
 
 		  float velocity = 0.0;
 
-		  float targetDist = 5.0 ;
+		  float targetDist = 1.0;
 		  float middleDist = targetDist / 2;
 
 		  float liftof_time = 0.0;
@@ -453,13 +453,13 @@ public:
 			{
 				velocity = velocity + (acceleration * interval);
 				robot_z = robot_z + (velocity * interval);
-				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+				// std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
 				timecount=timecount+interval;
 			}
 
 			while(buffer > 0)
 			{
-				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				// std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
 				buffer = buffer - 1;
 			}
 
@@ -469,20 +469,20 @@ public:
 				{
 					velocity = velocity + (acceleration * interval);
 					robot_z = robot_z + (velocity * interval);
-					std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+					// std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
 				}
 				else
 				{
 					velocity = velocity + (deceleration * interval);
 					robot_z = robot_z + (velocity * interval);
-					std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+					// std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
 				}
 				timecount=timecount+interval;
 			}
 			buffer = 5;
 			while(buffer > 0)
 			{
-				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
+				// std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
 				buffer = buffer - 1;
 			}
 
@@ -544,14 +544,14 @@ public:
 				angular_vel_per_50ms = ANGULAR_VEL * PERIOD;
 				angular_vel_per_sec = ANGULAR_VEL;
 			}
-			std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
+			// std::cout << std::setprecision(3) << std::fixed << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 			while( sum_yaw < fabs(turn_angle) )
 			{
 				robot_yaw += angular_vel_per_50ms;
-				std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
+				// std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 				sum_yaw += fabs(angular_vel_per_50ms);
 			}
-			std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
+			// std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 		}
 
 			void landing()
@@ -576,26 +576,33 @@ public:
 		      //velocity = velocity + (acceleration * interval);
 		      velocity = velocity + (deceleration * interval);
 		      robot_z = robot_z + (velocity * interval);
-		      std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
+		      // std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< deceleration << " 0.000 0.000"<<std::endl;
 		    }
 		    else
 		    {
 		      //velocity = velocity + (deceleration * interval);
 		      velocity = velocity + (acceleration * interval);
 		      robot_z = robot_z + (velocity * interval);
-		      std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
+		      // std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< acceleration << " 0.000 0.000"<<std::endl;
 		    }
 
 		    timecount=timecount+interval;
 		  }
 		  //Print out steady state
-		  std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		  // std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"0.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
 		    //Print out to stop the propeller
-		  std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
+		  // std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
 		}
 
 		void generateTrajectory(nav_msgs::Path &path)
 		{
+			std::ofstream myfile;
+		  myfile.open("ideal_path.txt");
+		  for(int i = 0; i < path.poses.size(); i++)
+			{
+				myfile << path.poses[i].pose.position.x << "," << path.poses[i].pose.position.y << std::endl;
+			}
+		  myfile.close();
 			takeoff();
 			generateFlightTrajectory(path);
 			landing();
@@ -634,10 +641,10 @@ public:
 	void putCircleOnGrid(float x, float y) {
 		int grid_x, grid_y;
 		mapXyToGridXy(grid_x, grid_y, x, y);
-		putCircleOnGrid(grid_x, grid_y, OBS_RADIUS);
+		putCircleOnGrid(grid_x, grid_y, OBS_RADIUS, OBS_INFLATED_RADIUS);
 	}
 
-	void putCircleOnGrid(int x, int y, float radius)
+	void putCircleOnGrid(int x, int y, float radius, float radius2)
 	{
 		int grid_radius = (int) (radius / GRID_RESOLUTION);
 		for (int i = -grid_radius; i < grid_radius; i++)
@@ -652,6 +659,24 @@ public:
 				}
 			}
 		}
+
+		grid_radius = (int) (radius2 / GRID_RESOLUTION);
+		for (int i = -grid_radius; i < grid_radius; i++)
+		{
+			for (int j = -grid_radius; j < grid_radius; j++)
+			{
+				int curr_x = x + i;
+				int curr_y = y + j;
+				if (validGridXy(curr_x,curr_y) && i*i+j*j<=grid_radius*grid_radius)
+				{
+					int temp = occupancy_grid.data[gridXyToGridI(curr_x,curr_y)];
+					if(temp != 100)
+					{
+						occupancy_grid.data[gridXyToGridI(curr_x,curr_y)] = 35;
+					}
+				}
+			}
+		}
 	}
 
 	nav_msgs::Path generatePath()
@@ -662,9 +687,15 @@ public:
 		// Get path(s)
 		// TODO: Not hardcoded directions?
 		// TODO: options
+
+		// std::cout << "start path" << std::endl;
 		a_star_path = a_star_search(CHECKPT_X,CHECKPT_Y, 0, START_X, START_Y);
 		nav_msgs::Path a_star_path2 = a_star_search(CHECKPT_X,CHECKPT_Y, 4, GOAL_X, GOAL_Y);
+
+		// std::cout << "end path" << std::endl;
 		reversePathAndRenumber(a_star_path2, a_star_path.poses.size()+1);
+
+		// std::cout << "reverse" << std::endl;
 		a_star_path.poses.insert(a_star_path.poses.end(), a_star_path2.poses.begin(), a_star_path2.poses.end());
 		return a_star_path;
 	}
@@ -803,13 +834,15 @@ public:
 		distances[start_x][start_y][start_direction] = 0;
 		pq.insert(MapCell(start_x, start_y, 0, start_direction));
 
+		// std::cout << "before search" << std::endl;
 		while(!pq.empty()) {
 			// Dequeue
-			MapCell current = *pq.begin();
+			MapCell current = *(pq.begin());
 			pq.erase(pq.begin());
 
 			// Check for goal
 			if (current.x == end_x && current.y == end_y) {
+				// std::cout << "before form path";
 				return formPath(start_x, start_y, start_direction, current.x, current.y, current.heading, parents);
 			}
 
@@ -828,6 +861,7 @@ public:
 				}
 			}
 		}
+		// std::cout << "search failed";
 		return formPath(start_x, start_y, start_direction, start_x, start_y, start_direction, parents);
 	}
 
@@ -840,11 +874,15 @@ public:
 		float new_est_cost = new_path_cost + estimateDistance(new_x, new_y, end_x, end_y);
 
 		if (validGridXy(new_x, new_y) && !isWall(new_x, new_y) && distances[new_x][new_y][new_heading]>new_path_cost) {
+			// std::cout << "neighbour: " << new_x << ", " << new_y << ", " << new_heading << std::endl;
 			pq.erase(MapCell(new_x, new_y, distances[new_x][new_y][new_heading], new_heading));
+			// std::cout << "after erase" << std::endl;
 			distances[new_x][new_y][new_heading] = new_path_cost;
 			parents[new_x][new_y][new_heading] = std::make_tuple(current.x,current.y,current.heading);
-
+			// std::cout << "before insert" << std::endl;
 			pq.insert(MapCell(new_x, new_y, new_path_cost, new_heading));
+			// std::cout << "after insert" << std::endl;
+
 		}
 
 		return !validGridXy(new_x, new_y) || !isWall(new_x, new_y);
@@ -877,6 +915,14 @@ public:
 		int index = gridXyToGridI(x, y);
 		int value = occupancy_grid.data[index];
 		return (value == 100);
+	}
+	float getObsValue(int x, int y)
+	{
+		int index = gridXyToGridI(x, y);
+		if (!validGridXy(x, y)) {
+			return 1;
+		}
+		return occupancy_grid.data[index] / 100.0;
 	}
 	bool validGridXy(int x, int y)
 	{
@@ -1038,18 +1084,18 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "TrajectoryPlanner");
 	ros::NodeHandle nh;
-	TrajectoryPlanner tp(nh, 0, 0);
+	TrajectoryPlanner tp(nh, -1.5, 1.5);
 
-	nav_msgs::Path path = set_up_test_case();
-	// nav_msgs::Path path = tp.generatePath();
+	// nav_msgs::Path path = set_up_test_case();
+	nav_msgs::Path path = tp.generatePath();
 	tp.generateTrajectory(path);
 
-	// ros::Rate loop_rate(10);
-	// while(ros::ok())
-	// {
-	// 	tp.loopActivity();
-	// 	ros::spinOnce();
-	// 	loop_rate.sleep();
-	// }
+	ros::Rate loop_rate(10);
+	while(ros::ok())
+	{
+		tp.loopActivity();
+		ros::spinOnce();
+		loop_rate.sleep();
+	}
 	return 0;
 }
