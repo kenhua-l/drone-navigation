@@ -20,7 +20,7 @@
 #define GRID_N          (GRID_LENGTH * GRID_LENGTH)
 // Problem definitions
 #define OBS_FILE 				"/home/mervyn/Desktop/EE4308-2/obstacles.txt"
-#define OBS_RADIUS			0.65
+#define OBS_RADIUS			0.71
 #define START_X					-1.5
 #define START_Y					1.5
 #define GOAL_X					-1.5
@@ -447,7 +447,7 @@ public:
 		  float interval = 0.05;
 
 		  float timecount= 0;
-		  int buffer = 5;
+		  int buffer = 400;
 
 			while(robot_z <= 0.3)
 			{
@@ -479,7 +479,7 @@ public:
 				}
 				timecount=timecount+interval;
 			}
-			buffer = 5;
+			buffer = 400;
 			while(buffer > 0)
 			{
 				std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<< robot_z << " 0.000 0.000 "<< velocity << " 0.000 0.000 0.000 0.000 0.000"<<std::endl;
@@ -604,7 +604,7 @@ public:
 			}
 		  myfile.close();
 			takeoff();
-			generateFlightTrajectory(path);
+			// generateFlightTrajectory(path);
 			landing();
 		}
 
@@ -630,7 +630,9 @@ public:
 		std::ifstream obsFile;
 		obsFile.open(OBS_FILE);
 		float obsIn[2];
-		for (int i=0; i<n; i++) {
+		int size;
+		obsFile >> size;
+		for (int i=0; i<size; i++) {
 			if (obsFile >> obsIn[0] >> obsIn[1]) {
 				putCircleOnGrid(obsIn[0],obsIn[1]);
 			}
@@ -813,8 +815,10 @@ public:
 
 		while(!pq.empty()) {
 			// Dequeue
+			std::cout << "before fdosidforiwgr" << std::endl;
 			MapCell current = *pq.begin();
 			pq.erase(pq.begin());
+			std::cout << "after fdosidforiwgr" << std::endl;
 
 			// Check for goal
 			if (current.x == end_x && current.y == end_y) {
@@ -1052,12 +1056,12 @@ int main(int argc, char **argv)
 	nav_msgs::Path path = tp.generatePath();
 	tp.generateTrajectory(path);
 
-	ros::Rate loop_rate(10);
-	while(ros::ok())
-	{
-		tp.loopActivity();
-		ros::spinOnce();
-		loop_rate.sleep();
-	}
-	return 0;
+	// ros::Rate loop_rate(10);
+	// while(ros::ok())
+	// {
+	// 	tp.loopActivity();
+	// 	ros::spinOnce();
+	// 	loop_rate.sleep();
+	// }
+	// return 0;
 }
