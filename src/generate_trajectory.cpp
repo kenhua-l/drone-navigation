@@ -287,6 +287,18 @@ class TrajectoryPlanner
 		{
 			// Format: x y z vx vy vz ax ay az head headv
 		}
+
+		bool isBlocked(MapCell arr[]) {
+			// Check if the generated path is blocked by the obstacles
+			for (int i=0; i<arr.length-1; i++) {
+				int x = arr[i].x;
+				int y = arr[i].y;
+				if (isWall(x, y)) {
+					return true;
+				}
+			}
+			return false;
+		}
 };
 
 int main(int argc, char **argv)
