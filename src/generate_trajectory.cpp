@@ -38,8 +38,7 @@
 #define NUM_NEIGHBOURS_RIGHT 	DRONE_TURN_STEPS
 #define NUM_NEIGHBOURS 				(2 * DRONE_TURN_STEPS)
 
-class TrajectoryPlanner
-{
+class TrajectoryPlanner{
 private:
 	// PP variables
 	nav_msgs::OccupancyGrid occupancy_grid;
@@ -68,29 +67,25 @@ private:
 		float distance;
 		int heading;
 
-		MapCell(int x, int y, float distance, int heading)
-		{
+		MapCell(int x, int y, float distance, int heading){
 			this->x = x;
 			this->y = y;
 			this->distance = distance;
 			this->heading = heading;
 		}
 
-		bool operator<(MapCell other) const
-		{
+		bool operator<(MapCell other) const{
 			return distance < other.distance;
 		}
 
-		void setHeading(int heading)
-		{
+		void setHeading(int heading){
 			this->heading = heading;
 		}
 	};
 
 
 public:
-	TrajectoryPlanner(ros::NodeHandle &nh, double x, double y)
-	{
+	TrajectoryPlanner(ros::NodeHandle &nh, double x, double y){
 
 		PERIOD = 0.05; // 50ms
 		ACCELERATION = 0.1;
@@ -122,18 +117,15 @@ public:
 
 	}
 
-		double distance(double x1, double y1, double x2, double y2)
-    {
+		double distance(double x1, double y1, double x2, double y2){
       return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
     }
 
-		double distance(geometry_msgs::Pose a, geometry_msgs::Pose b)
-    {
+		double distance(geometry_msgs::Pose a, geometry_msgs::Pose b){
 			return sqrt( pow(a.position.x - b.position.x, 2) + pow(a.position.y - b.position.y, 2));
     }
 
-		int find_index_nearest(nav_msgs::Path &path, double robot_x, double robot_y)
-    {
+		int find_index_nearest(nav_msgs::Path &path, double robot_x, double robot_y){
       static int previous_index = 0;
 
       double temp_distance, next_distance;
@@ -155,27 +147,23 @@ public:
       return path.poses.size() - 1;
     }
 
-		std::pair<double, double> convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y)
-    {
+		std::pair<double, double> convertToLocalCoords(double robot_x, double robot_y, double robot_yaw, double x, double y){
     	double local_x = (x - robot_x) * cos(-robot_yaw) - (y - robot_y) * sin(-robot_yaw);
       double local_y = (x - robot_x) * sin(-robot_yaw) + (y - robot_y) * cos(-robot_yaw);
 			return std::make_pair(local_x, local_y);
     }
 
 		// Find the angle between the origin and a line formed by two points
-		double findAngle(double x1, double y1, double x2, double y2)
-		{
+		double findAngle(double x1, double y1, double x2, double y2){
 			return atan2( y2 - y1, x2 - x1 );
 		}
 
 		// Find the angle between the origin and a line formed by two points
-		double findAngle(geometry_msgs::Pose pose1, geometry_msgs::Pose pose2)
-		{
+		double findAngle(geometry_msgs::Pose pose1, geometry_msgs::Pose pose2){
 			return atan2( pose2.position.y - pose1.position.y, pose2.position.x - pose1.position.x );
 		}
 
-		void applyRotationMatrix(double angle, double &x, double &y)
-		{
+		void applyRotationMatrix(double angle, double &x, double &y){
 			// std::cout << "x: " << x << " y: " << y << " angle: " << angle << std::endl;
 			double temp_x = x, temp_y = y;
 			x = temp_x * cos(angle) - temp_y * sin(angle);
@@ -183,8 +171,7 @@ public:
 			// std::cout << "x: " << x << " y: " << y << std::endl;
 		}
 
-		double calcRadius(double look_ahead_local_x, double look_ahead_local_y)
-		{
+		double calcRadius(double look_ahead_local_x, double look_ahead_local_y){
 			// std::cout << "!!!x: " << look_ahead_local_x << " !!!y: " << look_ahead_local_y << std::endl;
 			// std::cout << "temp1: " << pow(look_ahead_local_x, 2) << " temp2: " << pow(look_ahead_local_y, 2) << std::endl;
 			// std::cout << "temp3: " << (2 * look_ahead_local_y) << std::endl;
@@ -193,8 +180,7 @@ public:
 		}
 
 		void calcNextPoint(double robot_x, double robot_y, double robot_yaw, double current_vel, std::pair<double, double> local_look_ahead_point,
-											double look_ahead_max_vel, double &new_robot_x, double &new_robot_y, double &new_robot_yaw, double &new_vel)
-		{
+											double look_ahead_max_vel, double &new_robot_x, double &new_robot_y, double &new_robot_yaw, double &new_vel){
 			// std::cout << "look_ahead_max_vel: " << look_ahead_max_vel << std::endl;
 			if( (local_look_ahead_point.second < 0.0001) && (local_look_ahead_point.second > -0.0001) )
 			{
@@ -262,8 +248,7 @@ public:
 		}
 
 		// This function assumes that the robot will be close enough to the path
-		double calcVelocity(double distance_from_look_ahead, nav_msgs::Path path, int look_ahead, double current_vel, bool &stop)
-		{
+		double calcVelocity(double distance_from_look_ahead, nav_msgs::Path path, int look_ahead, double current_vel, bool &stop){
 			// std::cout << "distance_from_look_ahead: " << distance_from_look_ahead << std::endl;
 			double braking_time = current_vel / DECELERATION;
 			double braking_distance = current_vel * braking_time + 0.5 * DECELERATION * pow(braking_time, 2) + 0.15; //0.15m is the buffer
@@ -311,8 +296,7 @@ public:
 			return new_vel;
 		}
 
-		std::vector<double> calculatePathMaxVelocity(nav_msgs::Path path)
-		{
+		std::vector<double> calculatePathMaxVelocity(nav_msgs::Path path){
 			std::vector<double> result;
 			double temp, calculated_vel, total_distance = 0, sum_distance = 0;
 
@@ -361,8 +345,7 @@ public:
 		}
 
 		// Generate the velocity, acceleration profile and write it to a file
-		void generateFlightTrajectory(nav_msgs::Path &path)
-		{
+		void generateFlightTrajectory(nav_msgs::Path &path){
       if(path.poses.size() == 0)
       {
         return;
@@ -433,8 +416,7 @@ public:
 			}
 		}
 
-		void takeoff()
-		{
+		void takeoff(){
 		  float deceleration = -0.5;
 		  float acceleration = 0.5;
 
@@ -489,8 +471,7 @@ public:
 		}
 
 		// void rotate(double robot_x, double robot_y, double start_yaw, double end_yaw)
-		void rotate(double robot_x, double robot_y, double robot_z, double robot_yaw, double end_yaw)
-		{
+		void rotate(double robot_x, double robot_y, double robot_z, double robot_yaw, double end_yaw){
 			double temp_start_yaw = robot_yaw, temp_end_yaw = end_yaw;
 			if(temp_start_yaw < 0)
 			{
@@ -554,8 +535,7 @@ public:
 			std::cout << robot_x << " " << robot_y << " " << robot_z << " 0.000 0.000 0.000 0.000 0.000 0.000 " << robot_yaw << " " << angular_vel_per_sec << std::endl;
 		}
 
-			void landing()
-		{
+		void landing(){
 		  float acceleration = 0.3;
 		  float deceleration = -0.3;
 
@@ -594,8 +574,7 @@ public:
 		  std::cout <<std::fixed << std::setprecision(3) << robot_x << " " << robot_y << " "<<"-1.000" << " 0.000 0.000 "<< velocity << " 0.000 0.000 "<< "0.000" << " 0.000 0.000"<<std::endl;
 		}
 
-		void generateTrajectory(nav_msgs::Path &path)
-		{
+		void generateTrajectory(nav_msgs::Path &path){
 			takeoff();
 			generateFlightTrajectory(path);
 			landing();
@@ -604,8 +583,7 @@ public:
 	/* ----- PATH PLANNER FUNCTIONS ----- */
 
 	// Just continously publish data for display in rviz
-	void loopActivity()
-	{
+	void loopActivity(){
 		static int seq = 1;
 
 		occupancy_grid.header.seq = seq;
@@ -617,8 +595,7 @@ public:
 		seq++;
 	}
 
-	void putObstaclesOnGrid(int n)
-	{
+	void putObstaclesOnGrid(int n){
 		// Read obstacles from file and mark on grid
 		std::ifstream obsFile;
 		obsFile.open(OBS_FILE);
@@ -637,8 +614,7 @@ public:
 		putCircleOnGrid(grid_x, grid_y, OBS_RADIUS);
 	}
 
-	void putCircleOnGrid(int x, int y, float radius)
-	{
+	void putCircleOnGrid(int x, int y, float radius){
 		int grid_radius = (int) (radius / GRID_RESOLUTION);
 		for (int i = -grid_radius; i < grid_radius; i++)
 		{
@@ -654,8 +630,7 @@ public:
 		}
 	}
 
-	nav_msgs::Path generatePath()
-	{
+	nav_msgs::Path generatePath(){
 		// As a first step, generate a path between a start and an end goal
 		// The next step would be to generate a *smooth* path for multiple goals
 
@@ -853,46 +828,38 @@ public:
 	}
 
 	// Aux functions
-	int gridXyToGridI(int x, int y)
-	{
+	int gridXyToGridI(int x, int y){
 		return y*GRID_LENGTH + x;
 	}
-	void gridIToGridXy(int &grid_x, int &grid_y, int i)
-	{
+	void gridIToGridXy(int &grid_x, int &grid_y, int i){
 		// occupancy_grid.data uses a row-major order, so we need to convert
 		grid_x = (int) (i % occupancy_grid.info.width);
 		grid_y = (int) (i / occupancy_grid.info.width);
 	}
 
-	void mapXyToGridXy(int &grid_x, int &grid_y, float map_x, float map_y)
-	{
+	void mapXyToGridXy(int &grid_x, int &grid_y, float map_x, float map_y){
 		grid_x = (int)((map_x - occupancy_grid.info.origin.position.x)/GRID_RESOLUTION);
 		grid_y = (int)((map_y - occupancy_grid.info.origin.position.y)/GRID_RESOLUTION);
 	}
-	void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y)
-	{
+	void gridXyToMapXy(float &map_x, float &map_y, int grid_x, int grid_y){
 		map_x = occupancy_grid.info.origin.position.x + (grid_x + 0.5) * GRID_RESOLUTION;
 		map_y = occupancy_grid.info.origin.position.y + (grid_y + 0.5) * GRID_RESOLUTION;
 	}
-	bool isWall(int x, int y)
-	{
+	bool isWall(int x, int y){
 		int index = gridXyToGridI(x, y);
 		int value = occupancy_grid.data[index];
 		return (value == 100);
 	}
-	bool validGridXy(int x, int y)
-	{
+	bool validGridXy(int x, int y){
 		return (x >= 0 && y >= 0 && x < GRID_LENGTH && y < GRID_LENGTH);
 	}
-	float estimateDistance(float x1, float y1, float x2, float y2)
-	{
+	float estimateDistance(float x1, float y1, float x2, float y2){
 		return sqrt( pow(x1 - x2, 2) + pow(y1 - y2, 2) );
 	}
 
 };
 
-void add_pose_to_path(nav_msgs::Path &desired_path, float x, float y)
-{
+void add_pose_to_path(nav_msgs::Path &desired_path, float x, float y){
   static int seq = 1;
   geometry_msgs::PoseStamped ps;
   ps.header.seq = seq;
@@ -905,8 +872,7 @@ void add_pose_to_path(nav_msgs::Path &desired_path, float x, float y)
   desired_path.poses.push_back(ps);
 }
 
-nav_msgs::Path set_up_test_case()
-{
+nav_msgs::Path set_up_test_case(){
   nav_msgs::Path desired_path;
 	add_pose_to_path(desired_path, 0.0, 0.0);
 	add_pose_to_path(desired_path, 0.1, 0.1);
@@ -1041,17 +1007,7 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, "TrajectoryPlanner");
 	ros::NodeHandle nh;
 	TrajectoryPlanner tp(nh, MAP_START_X, MAP_START_Y);
-
-	// nav_msgs::Path path = set_up_test_case();
 	nav_msgs::Path path = tp.generatePath();
 	tp.generateTrajectory(path);
-
-	// ros::Rate loop_rate(10);
-	// while(ros::ok())
-	// {
-	// 	tp.loopActivity();
-	// 	ros::spinOnce();
-	// 	loop_rate.sleep();
-	// }
 	return 0;
 }
